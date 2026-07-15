@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# Env / secrets
+.env
+
+# Data
+data/
+
+# Personal planning docs
+agent-driven-dev-plan.md
