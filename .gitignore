@@ -15,3 +15,6 @@ venv/
 
 # Data
 data/
+
+# Personal planning docs
+agent-driven-dev-plan.md
