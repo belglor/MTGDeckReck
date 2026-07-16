@@ -2,6 +2,8 @@
 
 This directory records the significant architectural decisions for this project — why a choice was made, what alternatives were considered, and what trade-off was accepted.
 
+## Conventions
+
 - One decision per file, named `NNNN-kebab-case-title.md` with a zero-padded, sequential 4-digit number.
 - Copy `template.md` to start a new one.
 - `status` starts at `proposed`; move to `accepted` once settled. If a later decision replaces one, mark the old one `superseded by ADR-NNNN` rather than editing or deleting it — ADRs are an immutable log, not living documentation.
