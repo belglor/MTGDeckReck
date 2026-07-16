@@ -1,25 +1,23 @@
-# MTG Theme-Deck RAG Recommender — Project Spec & Roadmap
+# MTG Theme-Deck RAG Recommender — Project Spec
 
 ## What this is
 A retrieval-augmented recommendation system that suggests Magic: The Gathering cards from a natural-language description of a deck's theme or main mechanic (e.g. "spooky graveyard shenanigans", "everything is cats").
 
 **Design stance:** optimize for fun, casual, and thematic play. Do **not** rank or filter by competitiveness, play rate, or tournament data.
 
-**Primary format:** Commander (v1 target).
+**Primary format:** Commander (current scope).
 
-## Core architecture decisions (settled during scoping)
+## Core architecture decisions
 - **Data source:** Scryfall bulk JSON dump (free, refreshed daily). Provides oracle text, type line, creature types, color identity, per-format legalities, prices (USD/EUR/MTGO tix), rulings, set, flavor text, and art image URLs (`art_crop`).
 - **Retrieval unit:** one card = one record. No document chunking.
-- **Hard constraints are filters, not prompts:** format legality and color identity are deterministic metadata filters applied at retrieval time — illegal or off-color cards never reach the LLM. In v1 both are specified by the user in the UI; inferring them from the query is deferred (v2+).
+- **Hard constraints are filters, not prompts:** format legality and color identity are deterministic metadata filters applied at retrieval time — illegal or off-color cards never reach the LLM. Both are specified by the user in the UI; inferring them from the query is out of scope for now.
 - **Soft guidance via format templates:** skill-style markdown files (e.g. `commander.md`) loaded on demand. They carry deck-composition heuristics (roughly 10 ramp / 10 draw / 8 removal alongside theme cards), the casual/social framing, and workflow guidance for the LLM.
-- **Query planning — dynamic with hardcoded structure:** a single planner LLM call must output a typed schema, e.g. `[{query_text, purpose, channel, weight}]`. The format template tells it which roles to cover (theme payoffs, enablers, ramp, draw, removal…); the model decides the actual queries and how many. The app executes them in parallel, dedupes, and hands candidates to the curation call.
-- **Multi-channel embedding architecture:** each card gets per-field vectors precomputed offline (`oracle_vec`; later `flavor_vec`, `art_vec`). Channels are combined with weighted reciprocal rank fusion (RRF) — never compare raw similarity scores across different embedding spaces. "Dynamic" behavior comes from the planner emitting per-channel weights at query time; card vectors are never recomputed at inference, only the query is embedded (~30k cards → brute-force scoring is milliseconds).
+- **Query planning — dynamic with hardcoded structure:** a single planner LLM call must output a typed schema, `[{query_text, purpose}]`. The format template tells it which roles to cover (theme payoffs, enablers, ramp, draw, removal…); the model decides the actual queries and how many. The app executes them in parallel, dedupes, and hands candidates to the curation call.
+- **Cross-channel fusion:** if and when multiple embedding channels exist, they are combined via weighted reciprocal rank fusion (RRF) — never by comparing raw similarity scores across different embedding spaces.
 - **Curation layer:** the LLM receives the retrieved pool and groups cards by role (payoffs, enablers, support packages), explaining why each fits the theme, guided by the format template.
 - **Evaluation from day one:** a golden set of ~12 theme queries with known-good expected cards, plus a hit-rate script. Every later embedding or retrieval change is measured against this baseline.
 
-## Roadmap
-
-### v1 — MVP: end-to-end pipeline + eval baseline
+## Current scope
 Focus: overall code structure; the querying system is the main feature.
 
 Components to implement:
@@ -27,7 +25,7 @@ Components to implement:
 - **Embeddings:** single text channel — card name + type line (incl. creature types) + oracle text.
 - **Vector store:** local (Chroma or FAISS); ~30k unique cards, no infrastructure needed.
 - **Retrieval:** metadata filters (format legality, color identity) + semantic search.
-- **Planner call:** structured output. Schema includes `channel` and `weight` fields from day one, defaulting to oracle-only — a zero-cost hook so v2 is additive, not a refactor.
+- **Planner call:** structured output, schema `[{query_text, purpose}]`.
 - **Format template:** `commander.md`.
 - **Curation call:** role grouping + theme-fit explanations.
 - **UI:** format picker, color-identity picker, free-text theme input.
@@ -35,26 +33,7 @@ Components to implement:
 
 Deliverables: working end-to-end recommendation flow for Commander; baseline retrieval metrics on the golden set.
 
-### v2 — Richer embeddings (every change measured against the v1 baseline)
-Components to implement:
-- **LLM enrichment pass:** per-card theme/archetype tags (reads oracle + flavor text; e.g. "aristocrats payoff", "token swarm enabler"). Preferred way to capture flavor signal without flavor-text noise.
-- **Flavor channel:** via the tags above and/or a dedicated flavor-text embedding channel.
-- **Art channel:** SigLIP/CLIP image embeddings of `art_crop`s (one-time job over ~30k images), queried with short visual phrases generated by the planner. Never run long card text through CLIP's text encoder (~77-token cap); fuse this channel by rank only.
-- **Weighted multi-channel fusion live:** planner emits weights per query (e.g. gothic horror → flavor 0.8 / art 0.3; sacrifice payoffs → flavor 0).
-- **Optional:** set→plane metadata filter (e.g. "Innistrad-themed" as a filter, not a semantic guess).
-- **v2.5:** cross-encoder reranker on the top ~100 candidates from cheap retrieval.
-
-Deliverables: multi-channel retrieval with measurable improvement over the v1 golden-set baseline.
-
-### v3 — Agents & external/live info (learning goal: agent patterns)
-Start deliberately small; each agent is a learning exercise.
-
-Candidate agents, roughly in order of difficulty:
-- **Cross-vendor price comparison** (Scryfall already provides baseline prices since v1).
-- **Community signal:** Reddit discussions / deck primers; EDHREC theme pages mined for *theme discovery*, not meta-ranking (preserve the casual stance).
-- **Stretch:** YouTube deck-tech videos for inspiration (transcript mining; hardest).
-
-Deliverables: at least one working agent integrated into the flow; an established pattern for adding more.
+Longer-term direction (richer embeddings, agents) lives in `docs/vision.md` — it does not constrain anything above.
 
 ## Development practices (agent-driven)
 Guiding principle: keep the repo **legible** (agents can find the context they need) and **verifiable** (agents get fast, deterministic feedback). Every practice below serves one of those two.
@@ -74,6 +53,3 @@ Concrete setup checklist with learning milestones: see `agent-driven-dev-plan.md
 - Fuse cross-channel results by rank (RRF), not raw similarity scores.
 - CLIP/SigLIP is for images only; card text goes through a proper text embedding model.
 - Any retrieval or embedding change must be evaluated against the golden query set before adoption.
-
-## Current status
-Scoping complete. Next step: Phase 0 of `agent-driven-dev-plan.md` (repo scaffolding + verification loop), then v1 implementation starting with the eval golden set and ingestion.

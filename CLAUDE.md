@@ -6,6 +6,13 @@ MTGDeckReck: a RAG system that recommends Magic: The Gathering cards from a natu
 
 `just` is the command surface — see `justfile`. Key recipes: `just setup`, `just lint`, `just typecheck`, `just test`, `just check` (all of the above).
 
+## Git practices
+
+- Branch per unit of work, named `area/short-description` (e.g. `phase-0/verification-tooling`).
+- Small, logically-scoped commits — one concern per commit; message explains *why*, not just what.
+- PR descriptions: Summary (bulleted, what changed), Reviewer notes (non-obvious decisions, trade-offs, deferred work), Test plan (what was actually verified).
+- Never force-push a branch under review or skip hooks (`--no-verify`) to push a commit through — fix the underlying issue instead.
+
 ## Testing philosophy
 
 TDD: write the test before the code it verifies. Don't chase coverage percentage — test core functionality, real logic branches, and edge cases (empty results, boundary values, malformed input). Skip tests that just restate the implementation.
@@ -13,6 +20,8 @@ TDD: write the test before the code it verifies. Don't chase coverage percentage
 ## Guardrails (global)
 
 Never rank or filter cards by play rate, win rate, or tournament meta — this is a casual/thematic recommender, not a competitive one.
+
+Don't add fields, hooks, or abstractions for a feature that isn't in current scope (`docs/spec.md`), even if `docs/vision.md` mentions it. If it turns out to be needed, that's a small diff later. Cite this rule if asked to add a "zero-cost hook" or similar forward-compatibility scaffolding.
 
 Guardrails that only apply to part of the tree live in `.claude/rules/` instead, paired with the ADR that explains them.
 
