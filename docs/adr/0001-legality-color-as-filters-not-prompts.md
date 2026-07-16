@@ -22,5 +22,5 @@ Chosen option: "Metadata filter", because legality and color identity are object
 
 - Good, because illegal/off-color recommendations become impossible by construction, not just unlikely
 - Good, because it keeps planner/curation prompts focused on theme-fit reasoning, not rule-checking
-- Bad, because format/color-identity data must stay in sync with Scryfall's bulk refresh — a stale local dataset could let something through in error (mitigated by the idempotent refresh job from Phase 1.2)
+- Bad, because format/color-identity data must stay in sync with Scryfall's bulk refresh — a stale local dataset could let something through in error (mitigated by keeping the ingestion refresh idempotent and running it regularly)
 - Note: in v1, format and colors are supplied directly by the user via the UI; inferring them from a free-text query is deferred to v2+

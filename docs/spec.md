@@ -3,7 +3,7 @@
 ## What this is
 A retrieval-augmented recommendation system that suggests Magic: The Gathering cards from a natural-language description of a deck's theme or main mechanic (e.g. "spooky graveyard shenanigans", "everything is cats").
 
-**Design stance:** optimize for fun, casual, and thematic play. Do **not** rank or filter by competitiveness, play rate, or tournament data.
+**Design stance:** optimize for fun, casual, and thematic play. Competitiveness, play rate, and tournament data are downprioritized — not the focus of this project, though not categorically off-limits.
 
 **Primary format:** Commander (current scope).
 
@@ -34,22 +34,3 @@ Components to implement:
 Deliverables: working end-to-end recommendation flow for Commander; baseline retrieval metrics on the golden set.
 
 Longer-term direction (richer embeddings, agents) lives in `docs/vision.md` — it does not constrain anything above.
-
-## Development practices (agent-driven)
-Guiding principle: keep the repo **legible** (agents can find the context they need) and **verifiable** (agents get fast, deterministic feedback). Every practice below serves one of those two.
-- **Agent context:** `CLAUDE.md`/`AGENTS.md` at repo root (structure, commands, conventions, guardrails); ADRs in `docs/adr/` for settled decisions — agents must not re-litigate or silently undo them. This spec lives in the repo as `docs/spec.md`.
-- **Verification loop:** ruff (lint + format), pyright, pytest, pre-commit hooks. The golden-set evals belong to the same loop: tests gate the code, evals gate retrieval quality. "Done" is defined as machine-checkable *before* implementation starts.
-- **GitHub as workflow spine:** PR-only merges with branch protection (even solo); CI running lint → typecheck → tests → evals on every PR; agent PR review with the human as final gate; issue-driven development with tightly scoped, machine-checkable acceptance criteria.
-- **Environment:** uv + lockfile; a `justfile` as the single canonical command surface (`just test`, `just evals`, …) so agents never guess; secrets in `.env` (never committed) with gitleaks scanning.
-- **Dev tooling:** an internal MCP server exposing card lookups and live retrieval queries, so coding agents can debug against real data instead of guessing.
-- **Observability:** planner → retrieval → curation chain traced (Langfuse/OTel); prompts versioned in-repo like code.
-- **Later (v3):** parallel background agents on independent issues via git worktrees.
-
-Concrete setup checklist with learning milestones: see `agent-driven-dev-plan.md`.
-
-## Guardrails (apply in every session)
-- Never recommend or rank by play rate / tournament meta.
-- Never delegate legality or color-identity checks to the LLM — they are retrieval filters.
-- Fuse cross-channel results by rank (RRF), not raw similarity scores.
-- CLIP/SigLIP is for images only; card text goes through a proper text embedding model.
-- Any retrieval or embedding change must be evaluated against the golden query set before adoption.
