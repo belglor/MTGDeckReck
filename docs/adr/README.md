@@ -1,8 +1,6 @@
 # Architecture Decision Records
 
-This directory records the significant architectural decisions for this project — why a choice was made, what alternatives were considered, and what trade-off was accepted. Written for two audiences: future-you, and any coding agent working in this repo.
-
-## Conventions
+This directory records the significant architectural decisions for this project — why a choice was made, what alternatives were considered, and what trade-off was accepted.
 
 - One decision per file, named `NNNN-kebab-case-title.md` with a zero-padded, sequential 4-digit number.
 - Copy `template.md` to start a new one.
