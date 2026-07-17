@@ -25,7 +25,7 @@ jobs:
       # `read` makes every attempt to post the review a denial — the job still
       # goes green, having said nothing.
       pull-requests: write
-      issues: read
+      issues: write # GitHub routes top-level PR comments through the issues API
       id-token: write
 
     steps:
