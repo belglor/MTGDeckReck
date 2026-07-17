@@ -13,6 +13,13 @@ MTGDeckReck: a RAG system that recommends Magic: The Gathering cards from a natu
 - PR descriptions: Summary (bulleted, what changed), Reviewer notes (non-obvious decisions, trade-offs, deferred work), Test plan (what was actually verified).
 - Never force-push a branch under review or skip hooks (`--no-verify`) to push a commit through — fix the underlying issue instead.
 
+## CI / PR workflow
+
+- `main` is protected: no direct pushes. Changes land via PR with a green `check` run, and a human merges — agent review is advisory, not a merge gate.
+- `.github/workflows/ci.yml` mirrors `just check` (lint → typecheck → test) on every PR to `main`. Keep it that way: to change what CI does, edit the `justfile` recipe, not the workflow.
+- The Claude GitHub app auto-reviews each PR (`claude-code-review.yml`) and answers `@claude` mentions on issues and PRs (`claude.yml`).
+- New work starts from an issue filed with the **Agent task** template (`.github/ISSUE_TEMPLATE/agent-task.yml`), which applies the `agent-ready` label. Scope one concern per issue.
+
 ## Testing philosophy
 
 TDD: write the test before the code it verifies. Don't chase coverage percentage — test core functionality, real logic branches, and edge cases (empty results, boundary values, malformed input). Skip tests that just restate the implementation.
