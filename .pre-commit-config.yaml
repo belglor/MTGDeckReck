@@ -1,12 +1,18 @@
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.12.0
-    hooks:
-      - id: ruff
-        args: [--fix]
-      - id: ruff-format
   - repo: local
     hooks:
+      # Call the project's own ruff (the version uv.lock pins) rather than a copy
+      # pinned again here — one version, one place to bump, no drift from CI.
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check --fix --force-exclude
+        language: system
+        types_or: [python, pyi]
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format --force-exclude
+        language: system
+        types_or: [python, pyi]
       - id: gitleaks
         name: gitleaks
         entry: gitleaks protect --staged --redact -v
