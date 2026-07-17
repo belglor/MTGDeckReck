@@ -28,7 +28,7 @@ TDD: write the test before the code it verifies. Don't chase coverage percentage
 
 Downprioritize ranking or filtering by play rate, win rate, or tournament meta — this is a casual/thematic recommender first, not a competitive one. Meta signal isn't forbidden outright, just never the primary driver.
 
-Don't add fields, hooks, or abstractions for a feature that isn't in current scope (`docs/spec.md`), even if `docs/vision.md` mentions it. If it turns out to be needed, that's a small diff later. Cite this rule if asked to add a "zero-cost hook" or similar forward-compatibility scaffolding.
+Don't add fields, hooks, or abstractions for a feature that isn't in current scope (`docs/spec.md`). If it turns out to be needed, that's a small diff later. Cite this rule if asked to add a "zero-cost hook" or similar forward-compatibility scaffolding.
 
 Guardrails that only apply to part of the tree live in `.claude/rules/` instead, paired with the ADR that explains them.
 
