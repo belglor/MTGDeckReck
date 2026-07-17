@@ -1,0 +1,73 @@
+name: Agent task
+description: A scoped unit of work ready for an agent (or human) to pick up
+title: "[task]: "
+labels: ["agent-ready"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        One concern per issue. The more precisely the boundaries and the finish line are
+        drawn, the less an agent has to guess at them.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One or two sentences — what needs to change, and why.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context & links
+      description: Background, plus links to the spec, an ADR, or related issues.
+      placeholder: |
+        - docs/spec.md — "Retrieval" section
+        - docs/adr/0001-legality-color-as-filters-not-prompts.md
+    validations:
+      required: false
+
+  - type: textarea
+    id: in-scope
+    attributes:
+      label: In scope
+      description: The specific changes this issue covers.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Concrete and testable. Done when every box can be checked.
+      value: |
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+
+  - type: textarea
+    id: entry-points
+    attributes:
+      label: Relevant files / entry points
+      description: Where to start — paths, functions, `just` recipes.
+    validations:
+      required: false
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification / test plan
+      description: How to prove it works end to end. TDD — name the tests to write first.
+    validations:
+      required: true
+
+  - type: textarea
+    id: guardrails
+    attributes:
+      label: Guardrails to honor
+      description: Project rules that bear on this task (see CLAUDE.md).
+      placeholder: Casual/thematic first — play/win rate must not become the primary ranking driver.
+    validations:
+      required: false
