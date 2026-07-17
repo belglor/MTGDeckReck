@@ -21,7 +21,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
+      # write, not read: the action derives its GitHub tools from this scope, so
+      # `read` makes every attempt to post the review a denial — the job still
+      # goes green, having said nothing.
+      pull-requests: write
       issues: read
       id-token: write
 
