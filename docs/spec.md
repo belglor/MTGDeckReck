@@ -32,5 +32,3 @@ Components to implement:
 - **Evals:** golden query set + hit-rate script.
 
 Deliverables: working end-to-end recommendation flow for Commander; baseline retrieval metrics on the golden set.
-
-Longer-term direction (richer embeddings, agents) lives in `docs/vision.md` — it does not constrain anything above.
