@@ -44,6 +44,10 @@ jobs:
           # --comment is what makes the skill post. Without it the review runs in
           # full and then discards its findings; it is not a no-op, it is silent.
           prompt: '/code-review:code-review --comment ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
+          # Default is false, which hides the review's reasoning entirely — a run
+          # that skipped and one that genuinely found nothing are indistinguishable
+          # in the log. Surface it so a quiet run is still diagnosable.
+          show_full_output: true
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
 
