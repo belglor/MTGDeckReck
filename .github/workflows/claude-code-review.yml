@@ -50,8 +50,13 @@ jobs:
           # review runs to completion, gets every posting call denied, and exits
           # green having said nothing (permission_denials_count in the raw log is
           # the only tell). See anthropics/claude-code#32459.
+          #
+          # --allowedTools REPLACES the default toolset rather than adding to it,
+          # so the inspection tools have to be listed too. Omitting them left the
+          # reviewer able to post but unable to read the diff, and it gave up in
+          # four turns. Task matters most: the plugin's whole flow is subagents.
           claude_args: |
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh search:*)"
+            --allowedTools "Read,Glob,Grep,Task,TodoWrite,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh search:*)"
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
 
