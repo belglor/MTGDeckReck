@@ -44,6 +44,14 @@ jobs:
           # --comment is what makes the skill post. Without it the review runs in
           # full and then discards its findings; it is not a no-op, it is silent.
           prompt: '/code-review:code-review --comment ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
+          # The plugin declares the tools it needs in its command frontmatter,
+          # but that only binds when Claude Code reads it directly — the action
+          # grants nothing, and Bash is off by default here. Without this the
+          # review runs to completion, gets every posting call denied, and exits
+          # green having said nothing (permission_denials_count in the raw log is
+          # the only tell). See anthropics/claude-code#32459.
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh search:*)"
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
 
