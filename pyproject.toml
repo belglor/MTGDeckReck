@@ -4,7 +4,10 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "httpx>=0.28",
+    "polars>=1.0",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -19,6 +22,11 @@ dev = [
     "pyright>=1.1",
     "pytest>=8.4",
     "pre-commit>=4.0",
+    "jupyterlab>=4.0",
+    "nbstripout>=0.8",
+    # Not imported by our code. polars' public signatures reference numpy types,
+    # which resolve to Unknown under pyright strict when numpy is absent.
+    "numpy>=2.0",
 ]
 
 [tool.ruff]
