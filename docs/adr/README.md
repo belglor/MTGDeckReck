@@ -17,3 +17,5 @@ This directory records the significant architectural decisions for this project 
 - [0004](0004-planner-typed-query-schema.md) — The planner emits a typed query schema; the model chooses the queries
 - [0005](0005-curation-groups-by-role.md) — Curation returns cards grouped by role with theme-fit rationale
 - [0006](0006-eval-measures-retrieval-recall.md) — Evaluation measures retrieval recall on the candidate pool, not final recommendations
+- [0007](0007-multi-channel-embedding.md) — Embed card properties as separate semantic channels; structured facts stay filters
+- [0008](0008-rrf-fusion-not-raw-scores.md) — Combine channel rankings with Reciprocal Rank Fusion, never by averaging raw scores
