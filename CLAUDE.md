@@ -17,7 +17,7 @@ MTGDeckReck: a RAG system that recommends Magic: The Gathering cards from a natu
 
 - `main` is protected: no direct pushes. Changes land via PR with a green `check` run, and a human merges — agent review is advisory, not a merge gate.
 - `.github/workflows/ci.yml` mirrors `just check` (lint → typecheck → test) on every PR to `main`. Keep it that way: to change what CI does, edit the `justfile` recipe, not the workflow.
-- The Claude GitHub app auto-reviews each PR (`claude-code-review.yml`) and answers `@claude` mentions on issues and PRs (`claude.yml`).
+- Pre-push review is the contributor's own affair — nothing is enforced. What the project offers is `@autoreview`: commenting it on a PR runs a multi-agent review of the diff (`claude-code-review.yml`). On demand only, and it burns real quota per invocation, so don't suggest it reflexively. The Claude GitHub app separately answers `@claude` mentions on issues and PRs (`claude.yml`). Both are limited to collaborators.
 - New work starts from an issue filed with the **Agent task** template (`.github/ISSUE_TEMPLATE/agent-task.yml`), which applies the `agent-ready` label. Scope one concern per issue.
 
 ## Testing philosophy

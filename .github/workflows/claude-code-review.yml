@@ -1,22 +1,29 @@
 name: Claude Code Review
 
+# On demand only. This used to run on every `pull_request` synchronize, i.e. on
+# every push to an open PR — and one run is not one Claude call: the plugin fans
+# out to three Haiku agents, five parallel Sonnet reviewers, and a Haiku scorer
+# per issue found. Comment `@autoreview` on the PR to ask for one.
 on:
-  pull_request:
-    types: [opened, synchronize, ready_for_review, reopened]
-    # Optional: Only run on specific file changes
-    # paths:
-    #   - "src/**/*.ts"
-    #   - "src/**/*.tsx"
-    #   - "src/**/*.js"
-    #   - "src/**/*.jsx"
+  issue_comment:
+    types: [created]
 
 jobs:
   claude-review:
-    # Optional: Filter by PR author
-    # if: |
-    #   github.event.pull_request.user.login == 'external-contributor' ||
-    #   github.event.pull_request.user.login == 'new-developer' ||
-    #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
+    # `issue_comment` fires for comments on issues *and* PRs; the
+    # `issue.pull_request` key exists only on the PR flavour, and without it
+    # `@autoreview` on a plain issue would start a review with no PR to review.
+    #
+    # The trigger word deliberately shares no substring with `@claude`:
+    # `contains()` has no word boundaries, so `@claude-review` would also match
+    # claude.yml's gate and fire both workflows off a single comment.
+    if: >
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '@autoreview') &&
+      github.actor != 'claude[bot]' &&
+      (github.event.comment.author_association == 'OWNER' ||
+       github.event.comment.author_association == 'MEMBER' ||
+       github.event.comment.author_association == 'COLLABORATOR')
 
     runs-on: ubuntu-latest
     permissions:
@@ -32,7 +39,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          # On `issue_comment` the checkout default is the *default branch*, not
+          # the PR — without this the reviewer reads main and reviews nothing.
+          ref: refs/pull/${{ github.event.issue.number }}/head
+          # Full history, not 1: one of the plugin's five reviewers exists to
+          # read git blame, and a single commit gives it nothing to blame.
+          fetch-depth: 0
 
       - name: Run Claude Code Review
         id: claude-review
@@ -43,7 +55,9 @@ jobs:
           plugins: 'code-review@claude-code-plugins'
           # --comment is what makes the skill post. Without it the review runs in
           # full and then discards its findings; it is not a no-op, it is silent.
-          prompt: '/code-review:code-review --comment ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
+          # `github.event.pull_request.number` does not exist on issue_comment;
+          # the PR number arrives as `issue.number`.
+          prompt: '/code-review:code-review --comment ${{ github.repository }}/pull/${{ github.event.issue.number }}'
           # The plugin declares the tools it needs in its command frontmatter,
           # but that only binds when Claude Code reads it directly — the action
           # grants nothing, and Bash is off by default here. Without this the
