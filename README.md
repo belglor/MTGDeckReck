@@ -16,13 +16,12 @@ makes the call to merge.
 
 ### Review
 
-Reviewing your own work before you push is your own business — whatever local flow
-and tooling you like. Nothing here enforces it.
+`@autoreview` is this repo's automated review process: **comment it on a pull
+request** and a multi-agent Claude review runs against the diff, posting only
+findings it scores as high-confidence. Restricted to repo collaborators.
 
-What the project offers is one command: **comment `@autoreview` on a pull request**
-and a multi-agent Claude review runs against the diff, posting only findings it
-scores as high-confidence. It is not automatic and not a merge gate — it costs real
-quota per invocation, so ask for it when a change warrants it rather than on every
-push. Restricted to repo collaborators.
+It runs on demand rather than on every push, because each invocation costs real
+quota. On demand is not the same as optional — it is the accepted way changes get
+reviewed here; it simply isn't wired up as a merge gate.
 
 You can also mention `@claude` on any issue or PR to ask a question or hand off a task.
