@@ -1,19 +1,26 @@
 # MTG Theme-Deck RAG Recommender — Project Spec
 
 ## What this is
-A retrieval-augmented recommendation system that suggests Magic: The Gathering cards from a natural-language description of a deck's theme or main mechanic (e.g. "spooky graveyard shenanigans", "everything is cats").
+MTGDeckReck: a RAG system that recommends Magic: The Gathering cards from natural-language user requests. Here are some example questions the chatbot should be able to answer to
+- I want to make a commander deck with a spooky graveyard theme
+- I am looking to build a deck that heavily plays with connive
+- Here is a list of cards for my next commander deck. I am missing some cards, what would you recommend to add?
+- This is my current deck, give me some suggestions on how to improve (do I have to much ramp? Should I add removal?)
 
-**Design stance:** optimize for fun, casual, and thematic play. Competitiveness, play rate, and tournament data are downprioritized — not the focus of this project, though not categorically off-limits.
+Recommendations are following the user prompts and preferences, favoring flavor and theme rather than competitiveness or meta.
 
-**Primary format:** Commander (current scope).
+Downprioritize ranking or filtering by play rate, win rate, or tournament meta — this is a casual/thematic recommender first, not a competitive one. Meta signal isn't forbidden outright, just never the primary driver.
 
-## Core architecture decisions
+## Architecture
+
+How the system works today. Where a decision has an ADR, the entry links it — the
+ADR carries the reasoning and the alternatives; this section describes the result.
+
 - **Data source:** Scryfall bulk JSON dump (free, refreshed daily). Provides oracle text, type line, creature types, color identity, per-format legalities, prices (USD/EUR/MTGO tix), rulings, set, flavor text, and art image URLs (`art_crop`).
 - **Retrieval unit:** one card = one record. No document chunking.
-- **Hard constraints are filters, not prompts:** format legality and color identity are deterministic metadata filters applied at retrieval time — illegal or off-color cards never reach the LLM. Both are specified by the user in the UI; inferring them from the query is out of scope for now.
+- **Hard constraints are filters, not prompts:** format legality and color identity are deterministic metadata filters applied at retrieval time, so illegal or off-color cards never reach the LLM. Both are specified by the user in the UI — inferring them from the query is out of scope. See [ADR 0001](adr/0001-legality-color-as-filters-not-prompts.md).
 - **Soft guidance via format templates:** skill-style markdown files (e.g. `commander.md`) loaded on demand. They carry deck-composition heuristics (roughly 10 ramp / 10 draw / 8 removal alongside theme cards), the casual/social framing, and workflow guidance for the LLM.
 - **Query planning — dynamic with hardcoded structure:** a single planner LLM call must output a typed schema, `[{query_text, purpose}]`. The format template tells it which roles to cover (theme payoffs, enablers, ramp, draw, removal…); the model decides the actual queries and how many. The app executes them in parallel, dedupes, and hands candidates to the curation call.
-- **Cross-channel fusion:** if and when multiple embedding channels exist, they are combined via weighted reciprocal rank fusion (RRF) — never by comparing raw similarity scores across different embedding spaces.
 - **Curation layer:** the LLM receives the retrieved pool and groups cards by role (payoffs, enablers, support packages), explaining why each fits the theme, guided by the format template.
 - **Evaluation from day one:** a golden set of ~12 theme queries with known-good expected cards, plus a hit-rate script. Every later embedding or retrieval change is measured against this baseline.
 
