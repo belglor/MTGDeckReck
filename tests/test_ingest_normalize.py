@@ -111,7 +111,9 @@ def test_legalities_keys_and_values_are_lowercased(cards: dict[str, dict[str, An
 
 
 def test_categorical_fields_are_lowercased(cards: dict[str, dict[str, Any]]) -> None:
-    raw = dict(cards["Sol Ring"], layout="Normal", rarity="Uncommon", set="MSC", set_type="Commander")
+    raw = dict(
+        cards["Sol Ring"], layout="Normal", rarity="Uncommon", set="MSC", set_type="Commander"
+    )
     raw["games"] = ["Paper", "MTGO"]
 
     record = normalize_card(raw)
