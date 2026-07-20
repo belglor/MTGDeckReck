@@ -10,9 +10,31 @@ Agent-driven RAG project for Magic: The Gathering deckbuilding recommendations.
 
 - `just setup` — sync dependencies, install pre-commit hooks
 - `just check` — lint, typecheck, test; exactly what CI runs
+- `just ingest` — build the card corpus (see below)
+- `just notebook` — open JupyterLab
 
 `main` is protected: changes land through a pull request with green CI, and a human
 makes the call to merge.
+
+## Card data
+
+`just ingest` downloads Scryfall's `oracle_cards` bulk snapshot and normalizes it
+to `data/cards.parquet` (~38k cards, one row per card, ~4 MB). It is a manual
+step — there is no scheduled refresh — and it is idempotent: a re-run checks the
+upstream snapshot timestamp against `data/cards.meta.json` and does nothing if
+the corpus is already current. Use `just ingest --force` to rebuild anyway.
+
+`data/` is gitignored. Deleting it and re-running restores everything.
+
+`notebooks/01-scryfall-exploration.ipynb` profiles the result — channel coverage,
+corpus composition, and the multi-face joins. Commit notebooks without outputs;
+the `nbstripout` pre-commit hook enforces this.
+
+URLs, file names, and separators the ingester depends on live in
+`src/mtg_rag/ingest/config.py`. The one value read from the environment is
+`SCRYFALL_USER_AGENT` — Scryfall asks API clients to identify themselves with
+real contact info, which doesn't belong hardcoded in source. Copy
+`.env.example` to `.env` (gitignored) to set it locally.
 
 ### Review
 

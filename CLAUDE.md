@@ -8,6 +8,10 @@ What it is and how it works: `docs/spec.md`. Why it works that way: `docs/adr/`.
 
 `just` is the command surface — see `justfile`. Key recipes: `just setup`, `just lint`, `just typecheck`, `just test`, `just check` (all of the above).
 
+`just ingest` builds the card corpus at `data/cards.parquet` from Scryfall's bulk
+snapshot; `just notebook` opens JupyterLab. Both are manual — there is no
+scheduled refresh. `data/` is gitignored and fully reproducible.
+
 ## Git practices
 
 - Branch per unit of work, named `area/short-description` (e.g. `ci/on-demand-review`).
@@ -39,5 +43,6 @@ TDD: write the test before the code it verifies. Don't chase coverage percentage
 | `.claude/rules/*.md` | by path glob | rules for one subtree, each paired with the ADR that justifies it |
 | `.claude/skills/<name>/SKILL.md` | on demand | procedures for working on this repo; none yet |
 | `src/mtg_rag/templates/*.md` | by the app, at runtime | deckbuilding guides fed to planner/curation prompts — shipped behavior, not dev tooling |
+| `notebooks/*.ipynb` | never | exploration only; commit without outputs (`nbstripout` enforces) |
 
 Path-scoped rules don't always load (upstream frontmatter bugs). Confirm with `/context` before relying on one.

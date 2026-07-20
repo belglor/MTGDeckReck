@@ -13,3 +13,10 @@ test:
     uv run pytest
 
 check: lint typecheck test
+
+# Download the Scryfall oracle-cards snapshot into data/cards.parquet
+ingest *args:
+    uv run python -m mtg_rag.ingest {{args}}
+
+notebook:
+    uv run jupyter lab
