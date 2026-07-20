@@ -13,9 +13,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
+from mtg_rag.ingest.config import CORPUS_NAME, DEFAULT_BULK_TYPE, SIDECAR_NAME
 from mtg_rag.ingest.normalize import CardRecord, MalformedCardError, build_frame, normalize_card
 from mtg_rag.ingest.scryfall import (
-    DEFAULT_BULK_TYPE,
     Snapshot,
     download,
     fetch_bulk_entry,
@@ -24,9 +24,6 @@ from mtg_rag.ingest.scryfall import (
     stream_cards,
     summarize,
 )
-
-CORPUS_NAME = "cards.parquet"
-SIDECAR_NAME = "cards.meta.json"
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:

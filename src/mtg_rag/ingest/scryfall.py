@@ -18,14 +18,7 @@ from typing import Any, Self, cast
 import httpx
 import polars as pl
 
-from mtg_rag.ingest.normalize import FACE_SEPARATOR
-
-BULK_INDEX_URL = "https://api.scryfall.com/bulk-data"
-DEFAULT_BULK_TYPE = "oracle_cards"
-
-#: Scryfall asks API clients to identify themselves; requests without a
-#: User-Agent are rejected outright.
-USER_AGENT = "MTGDeckReck/0.1 (https://github.com/belglor/MTGDeckReck)"
+from mtg_rag.ingest.config import BULK_INDEX_URL, DEFAULT_BULK_TYPE, FACE_SEPARATOR, USER_AGENT
 
 
 @dataclass(frozen=True, slots=True)

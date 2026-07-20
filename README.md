@@ -30,6 +30,12 @@ the corpus is already current. Use `just ingest --force` to rebuild anyway.
 corpus composition, and the multi-face joins. Commit notebooks without outputs;
 the `nbstripout` pre-commit hook enforces this.
 
+URLs, file names, and separators the ingester depends on live in
+`src/mtg_rag/ingest/config.py`. The one value read from the environment is
+`SCRYFALL_USER_AGENT` — Scryfall asks API clients to identify themselves with
+real contact info, which doesn't belong hardcoded in source. Copy
+`.env.example` to `.env` (gitignored) to set it locally.
+
 ### Review
 
 `@autoreview` is this repo's automated review process: **comment it on a pull

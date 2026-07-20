@@ -24,14 +24,7 @@ from typing import Any, cast
 
 import polars as pl
 
-#: Separator for text joined across a card's faces. Newlines keep the halves
-#: visually distinct in oracle and flavor text, matching how Scryfall renders
-#: split cards.
-FACE_SEPARATOR = "\n//\n"
-
-#: Mana costs are joined inline instead, since a newline inside a cost string
-#: would be nonsense.
-COST_SEPARATOR = " // "
+from mtg_rag.ingest.config import COST_SEPARATOR, FACE_SEPARATOR
 
 
 class MalformedCardError(ValueError):
