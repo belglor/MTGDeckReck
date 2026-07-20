@@ -22,3 +22,7 @@ This directory records the significant architectural decisions for this project 
 - [0009](0009-parquet-card-corpus.md) — The card corpus is stored as a single local parquet file
 - [0010](0010-oracle-id-identity-key.md) — `oracle_id` is the identity key; the vector store holds vectors and nothing else
 - [0011](0011-evaluation-scope-and-baseline-semantics.md) — Evaluation certifies retrieval recall in two modes; curation and flavor fidelity stay out of automated scope
+- [0012](0012-embedding-model.md) — The embedding model is Qwen3-Embedding-0.6B, run locally
+- [0013](0013-structural-card-predicate.md) — Exclude only structural non-cards from the index
+- [0014](0014-absent-channel-no-vector.md) — An absent channel produces no vector, never a zero vector
+- [0015](0015-wholesale-index-rebuild.md) — Rebuild the vector index wholesale; no incremental reconciliation
