@@ -21,3 +21,4 @@ This directory records the significant architectural decisions for this project 
 - [0008](0008-rrf-fusion-not-raw-scores.md) — Combine channel rankings with Reciprocal Rank Fusion, never by averaging raw scores
 - [0009](0009-parquet-card-corpus.md) — The card corpus is stored as a single local parquet file
 - [0010](0010-oracle-id-identity-key.md) — `oracle_id` is the identity key; the vector store holds vectors and nothing else
+- [0011](0011-evaluation-scope-and-baseline-semantics.md) — Evaluation certifies retrieval recall in two modes; curation and flavor fidelity stay out of automated scope
