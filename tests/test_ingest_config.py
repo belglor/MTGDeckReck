@@ -17,7 +17,7 @@ from mtg_rag.ingest import config as config_module
 
 
 @pytest.fixture(autouse=True)
-def _reset_config_module() -> Iterator[None]:
+def reset_config_module() -> Iterator[None]:
     """Reload after every test so an env override doesn't leak into the next."""
     yield
     importlib.reload(config_module)
