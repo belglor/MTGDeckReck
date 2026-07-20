@@ -13,16 +13,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
+from mtg_rag.ingest.normalize import CardRecord, MalformedCardError, build_frame, normalize_card
 from mtg_rag.ingest.scryfall import (
     DEFAULT_BULK_TYPE,
-    CardRecord,
-    MalformedCardError,
     Snapshot,
-    build_frame,
     download,
     fetch_bulk_entry,
     make_client,
-    normalize_card,
     should_skip,
     stream_cards,
     summarize,
