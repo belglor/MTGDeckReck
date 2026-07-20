@@ -170,11 +170,11 @@ def _legalities(raw: Mapping[str, Any]) -> Mapping[str, str]:
     if not isinstance(value, dict):
         return {}
     items = cast("dict[Any, Any]", value)
-    return {
-        k.lower(): v.lower()
-        for k, v in items.items()
-        if isinstance(k, str) and isinstance(v, str)
-    }
+    legalities: dict[str, str] = {}
+    for k, v in items.items():
+        if isinstance(k, str) and isinstance(v, str):
+            legalities[k.lower()] = v.lower()
+    return legalities
 
 
 def _prices(raw: Mapping[str, Any]) -> Mapping[str, Any]:
