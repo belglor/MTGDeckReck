@@ -119,9 +119,7 @@ def _str_list(raw: Mapping[str, Any], key: str) -> list[str]:
     value: Any = raw.get(key)
     if not isinstance(value, list):
         return []
-    return [
-        _normalize_text(item) for item in cast("list[Any]", value) if isinstance(item, str)
-    ]
+    return [_normalize_text(item) for item in cast("list[Any]", value) if isinstance(item, str)]
 
 
 def _lower_str_list(raw: Mapping[str, Any], key: str) -> list[str]:
@@ -173,7 +171,9 @@ def _legalities(raw: Mapping[str, Any]) -> Mapping[str, str]:
         return {}
     items = cast("dict[Any, Any]", value)
     return {
-        k.lower(): v.lower() for k, v in items.items() if isinstance(k, str) and isinstance(v, str)
+        k.lower(): v.lower()
+        for k, v in items.items()
+        if isinstance(k, str) and isinstance(v, str)
     }
 
 
