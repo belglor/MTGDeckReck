@@ -22,11 +22,13 @@ import numpy as np
 from numpy.typing import NDArray
 
 from mtg_rag.embed.config import (
+    ATTENTION_IMPLEMENTATION,
     DOCUMENT_BATCH_SIZE,
     EMBEDDING_DIM,
     MAX_SEQ_LENGTH,
     MODEL_ID,
     QUERY_BATCH_SIZE,
+    TORCH_DTYPE_BY_CAPABILITY,
 )
 
 
@@ -72,6 +74,30 @@ def _load_sentence_transformer() -> Any:
     return loaded
 
 
+def detect_capability(torch: Any) -> str:
+    """Which compute tier `torch` reports for this machine.
+
+    Takes the module rather than importing it, so the branch that decides the
+    dtype is testable on a machine with no torch at all — which is every machine
+    that has not opted into the `embed` extra, including CI.
+
+    Ordered by preference: bf16-capable CUDA, then any CUDA, then Apple's MPS,
+    then CPU as the floor.
+    """
+    if torch.cuda.is_available():
+        return "cuda-bf16" if torch.cuda.is_bf16_supported() else "cuda"
+    mps = getattr(torch.backends, "mps", None)
+    if mps is not None and mps.is_available():
+        return "mps"
+    return "cpu"
+
+
+def _resolve_torch_dtype() -> str:
+    """The widest compute dtype this machine actually supports."""
+    torch: Any = importlib.import_module("torch")
+    return TORCH_DTYPE_BY_CAPABILITY[detect_capability(torch)]
+
+
 class QwenEncoder:
     """`Qwen/Qwen3-Embedding-0.6B`, run locally ([ADR 0012]).
 
@@ -86,15 +112,18 @@ class QwenEncoder:
         # module docstring and `test_embed_imports.py`, which protects it.
         sentence_transformer = _load_sentence_transformer()
 
-        # float16 and sdpa because Turing (sm_75) has neither bf16 nor
-        # flash-attention-2. Note there is no `padding_side="left"`: that
-        # appears in the model card's raw-transformers example and gets
-        # cargo-culted, but sentence-transformers' last-token pooling reads the
-        # attention mask and is padding-side agnostic.
+        # The dtype follows the hardware rather than assuming the machine this
+        # was written on. Note there is no `padding_side="left"`: it appears in
+        # the model card's raw-transformers example and gets cargo-culted, but
+        # sentence-transformers' last-token pooling reads the attention mask and
+        # is padding-side agnostic.
         model: Any = sentence_transformer(
             MODEL_ID,
             device=device,
-            model_kwargs={"torch_dtype": "float16", "attn_implementation": "sdpa"},
+            model_kwargs={
+                "torch_dtype": _resolve_torch_dtype(),
+                "attn_implementation": ATTENTION_IMPLEMENTATION,
+            },
         )
         model.max_seq_length = MAX_SEQ_LENGTH
 

@@ -68,3 +68,22 @@ MAX_SEQ_LENGTH = 512
 #: queries arrive a few at a time per request, so they use a smaller batch.
 DOCUMENT_BATCH_SIZE = 128
 QUERY_BATCH_SIZE = 32
+
+#: Attention kernel. `sdpa` ships with torch, needs no extra package, and runs
+#: on every backend below. flash-attention-2 is deliberately not requested: it
+#: would need `flash-attn` installed and Ampere or newer, and it is not a
+#: dependency this project carries.
+ATTENTION_IMPLEMENTATION = "sdpa"
+
+#: Compute dtype per detected device capability — the hardware assumption made
+#: explicit, rather than one machine's answer hardcoded at the call site.
+#: bfloat16 needs Ampere or newer (sm_80+); Turing (sm_75), the RTX 2070 class
+#: this was first written for, offers float16 only. CPU gets float32: half
+#: precision there is slow and unevenly supported, and the routed Linux wheel is
+#: a CPU build, so that path is reachable rather than hypothetical.
+TORCH_DTYPE_BY_CAPABILITY: Mapping[str, str] = {
+    "cuda-bf16": "bfloat16",
+    "cuda": "float16",
+    "mps": "float16",
+    "cpu": "float32",
+}
