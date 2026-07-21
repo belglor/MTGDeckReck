@@ -18,5 +18,10 @@ check: lint typecheck test
 ingest *args:
     uv run python -m mtg_rag.ingest {{args}}
 
+# Embed the corpus into data/vectors/ (one Chroma collection per channel).
+# Needs the optional model half: uv sync --extra embed
+embed *args:
+    uv run python -m mtg_rag.embed {{args}}
+
 notebook:
     uv run jupyter lab
