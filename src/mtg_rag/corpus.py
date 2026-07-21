@@ -21,32 +21,7 @@ from __future__ import annotations
 
 import polars as pl
 
-#: Oversized or non-deck layouts — objects a player never puts in a deck.
-EXCLUDED_LAYOUTS: frozenset[str] = frozenset(
-    {
-        "art_series",
-        "token",
-        "double_faced_token",
-        "emblem",
-        "vanguard",
-        "scheme",
-        "planar",
-        "augment",
-        "host",
-    }
-)
-
-#: Set types whose `layout: normal` contents are non-cards nothing else catches
-#: — Celebration / Collectors' Edition memorabilia, token sets, minigame inserts.
-#: Deliberately small: layout exclusion alone already removes almost everything,
-#: and this list adds only the handful of normal-layout stragglers ([ADR 0013]).
-EXCLUDED_SET_TYPES: frozenset[str] = frozenset(
-    {
-        "memorabilia",
-        "token",
-        "minigame",
-    }
-)
+from mtg_rag.corpus_config import EXCLUDED_LAYOUTS, EXCLUDED_SET_TYPES
 
 
 def is_real_card() -> pl.Expr:
