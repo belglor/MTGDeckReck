@@ -10,16 +10,16 @@ Needs the optional model half: `uv sync --extra embed`.
 from __future__ import annotations
 
 import argparse
-import io
 import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
 
 import polars as pl
 from chromadb.api import ClientAPI
 
+from mtg_rag.cli import use_utf8_stdout
+from mtg_rag.corpus_config import ID_COLUMN
 from mtg_rag.embed.channels import channel_frame
 from mtg_rag.embed.config import (
     CHANNELS,
@@ -80,7 +80,7 @@ def embed_channel(
 ) -> int:
     """Rebuild one channel's collection from the corpus. Returns vectors written."""
     composed = channel_frame(frame, channel)
-    ids: list[str] = composed["oracle_id"].to_list()
+    ids: list[str] = composed[ID_COLUMN].to_list()
     texts: list[str] = composed[TEXT_COLUMN].to_list()
 
     vectors = encoder.encode_documents(texts, batch_size=batch_size)
@@ -92,12 +92,7 @@ def embed_channel(
 
 
 def main(argv: list[str] | None = None) -> int:
-    # Card names and flavor text are full of em-dashes and accents; a cp1252
-    # console would otherwise raise on the first one printed.
-    stdout = cast("io.TextIOWrapper[Any]", sys.stdout)
-    if hasattr(stdout, "reconfigure"):  # not present when stdout is captured
-        stdout.reconfigure(encoding="utf-8", errors="replace")
-
+    use_utf8_stdout()
     args = _parse_args(argv)
     data_dir: Path = args.data_dir
     corpus_path = data_dir / CORPUS_NAME
