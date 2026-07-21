@@ -48,6 +48,11 @@ CHANNELS: tuple[Channel, ...] = tuple(CHANNEL_SOURCES)
 #: out at each call site.
 TEXT_COLUMN = "text"
 
+#: On-disk names for the vector index and its provenance sidecar, under whatever
+#: --data-dir the CLI is given. Mirrors `ingest/config.py`'s corpus names.
+VECTOR_DIR_NAME = "vectors"
+VECTOR_SIDECAR_NAME = "vectors.meta.json"
+
 #: The embedding model ([ADR 0012]): Apache 2.0, ~600M parameters, and the
 #: strongest open-weight option that fits the target RTX 2070.
 MODEL_ID = "Qwen/Qwen3-Embedding-0.6B"
@@ -74,6 +79,13 @@ QUERY_BATCH_SIZE = 32
 #: would need `flash-attn` installed and Ampere or newer, and it is not a
 #: dependency this project carries.
 ATTENTION_IMPLEMENTATION = "sdpa"
+
+#: CUDA compute-capability major version at which bfloat16 becomes *native*:
+#: Ampere, sm_80. Below it torch still reports bf16 as supported, because
+#: `torch.cuda.is_bf16_supported()` counts emulation — measured True on a
+#: Turing RTX 2070 (sm_75), where bf16 has no tensor-core path and is slower
+#: than plain float16. The tier is decided on this number for that reason.
+BF16_MIN_COMPUTE_MAJOR = 8
 
 #: Compute dtype per detected device capability — the hardware assumption made
 #: explicit, rather than one machine's answer hardcoded at the call site.

@@ -7,12 +7,10 @@ just ingest --force    # rebuild regardless
 from __future__ import annotations
 
 import argparse
-import io
-import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
 
+from mtg_rag.cli import use_utf8_stdout
 from mtg_rag.ingest.config import CORPUS_NAME, DEFAULT_BULK_TYPE, SIDECAR_NAME
 from mtg_rag.ingest.normalize import CardRecord, MalformedCardError, build_frame, normalize_card
 from mtg_rag.ingest.scryfall import (
@@ -51,12 +49,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
-    # Card names and flavor text are full of em-dashes and accents; a cp1252
-    # console would otherwise raise on the first one printed.
-    stdout = cast("io.TextIOWrapper[Any]", sys.stdout)
-    if hasattr(stdout, "reconfigure"):  # not present when stdout is captured
-        stdout.reconfigure(encoding="utf-8", errors="replace")
-
+    use_utf8_stdout()
     args = _parse_args(argv)
     data_dir: Path = args.data_dir
     corpus_path = data_dir / CORPUS_NAME

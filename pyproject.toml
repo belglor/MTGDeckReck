@@ -44,6 +44,8 @@ dev = [
     "pre-commit>=4.0",
     "jupyterlab>=4.0",
     "nbstripout>=0.8",
+    # Notebook plotting only — not imported by anything under src/.
+    "matplotlib>=3.9",
 ]
 
 # Torch needs explicit index routing, because neither default is what we want:

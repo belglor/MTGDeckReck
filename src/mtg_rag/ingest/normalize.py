@@ -24,6 +24,7 @@ from typing import Any, cast
 
 import polars as pl
 
+from mtg_rag.corpus_config import ID_COLUMN
 from mtg_rag.ingest.config import COST_SEPARATOR, FACE_SEPARATOR
 
 
@@ -243,7 +244,7 @@ def build_frame(records: Iterable[CardRecord]) -> pl.DataFrame:
     rows: list[dict[str, Any]] = []
     for record in materialized:
         row: dict[str, Any] = {
-            "oracle_id": record.oracle_id,
+            ID_COLUMN: record.oracle_id,
             "name": record.name,
             "oracle_text": record.oracle_text,
             "flavor_text": record.flavor_text,
@@ -277,7 +278,7 @@ def build_frame(records: Iterable[CardRecord]) -> pl.DataFrame:
         pl.col("released_at").str.to_date(strict=False)
     )
 
-    duplicates = frame.height - frame["oracle_id"].n_unique()
+    duplicates = frame.height - frame[ID_COLUMN].n_unique()
     if duplicates:
         raise ValueError(
             f"{duplicates} duplicate oracle_id values — the corpus key must be unique (ADR 0010)"

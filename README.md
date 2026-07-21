@@ -11,6 +11,7 @@ Agent-driven RAG project for Magic: The Gathering deckbuilding recommendations.
 - `just setup` — sync dependencies, install pre-commit hooks
 - `just check` — lint, typecheck, test; exactly what CI runs
 - `just ingest` — build the card corpus (see below)
+- `just embed` — build the vector index (see below)
 - `just notebook` — open JupyterLab
 
 `main` is protected: changes land through a pull request with green CI, and a human
@@ -29,6 +30,39 @@ the corpus is already current. Use `just ingest --force` to rebuild anyway.
 `notebooks/01-scryfall-exploration.ipynb` profiles the result — channel coverage,
 corpus composition, and the multi-face joins. Commit notebooks without outputs;
 the `nbstripout` pre-commit hook enforces this.
+
+## Vectors
+
+`just embed` turns `data/cards.parquet` into `data/vectors/` — one Chroma
+collection per embedding channel (oracle text with the card name folded in,
+flavor text, and type line), keyed by `oracle_id`. Structural non-cards — tokens,
+emblems, planes, schemes, vanguards — are excluded, leaving roughly 34k cards and
+88k vectors. A card with no text in a channel simply has no entry there.
+
+The model is an **optional dependency**, because it pulls torch and only the
+machine building the index needs it:
+
+```sh
+uv sync --extra embed   # ~2.5 GB; not installed by `just setup`
+just embed              # first run also downloads ~1.2 GB of model weights
+```
+
+Like `just ingest` it is manual and idempotent: a re-run compares
+`data/vectors.meta.json` against the corpus snapshot, the model id, and the
+vector dimension, and does nothing if the index is already current — without
+loading the model. `just embed --force` rebuilds anyway. `just embed --channel
+flavor` rebuilds a single channel while iterating; a partial run deliberately
+leaves the sidecar alone, since it cannot establish that the whole index is
+current. The index is rebuilt wholesale rather than reconciled card by card.
+
+The model id and vector dimension live in `src/mtg_rag/embed/config.py`. Changing
+either invalidates the index and starts a new retrieval baseline rather than
+continuing the old one. Compute dtype is detected from the hardware.
+
+`notebooks/02-embedding-exploration.ipynb` inspects the result: channel coverage,
+whether cards sharing a creature type actually sit closer together, how often a
+keyword query returns cards whose text contains that keyword, and what
+flavour-phrased queries surface across the three channels.
 
 URLs, file names, and separators the ingester depends on live in
 `src/mtg_rag/ingest/config.py`. The one value read from the environment is

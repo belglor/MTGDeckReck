@@ -18,6 +18,7 @@ from __future__ import annotations
 import polars as pl
 
 from mtg_rag.corpus import is_real_card
+from mtg_rag.corpus_config import ID_COLUMN
 from mtg_rag.embed.config import (
     CHANNEL_SOURCE_SEPARATOR,
     CHANNEL_SOURCES,
@@ -54,6 +55,6 @@ def channel_frame(frame: pl.DataFrame, channel: Channel) -> pl.DataFrame:
     text = pl.col(TEXT_COLUMN)
     return (
         frame.filter(is_real_card())
-        .select("oracle_id", channel_expr(channel).alias(TEXT_COLUMN))
+        .select(ID_COLUMN, channel_expr(channel).alias(TEXT_COLUMN))
         .filter(text.is_not_null() & (text.str.strip_chars().str.len_chars() > 0))
     )

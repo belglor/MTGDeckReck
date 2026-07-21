@@ -9,8 +9,15 @@ What it is and how it works: `docs/spec.md`. Why it works that way: `docs/adr/`.
 `just` is the command surface — see `justfile`. Key recipes: `just setup`, `just lint`, `just typecheck`, `just test`, `just check` (all of the above).
 
 `just ingest` builds the card corpus at `data/cards.parquet` from Scryfall's bulk
-snapshot; `just notebook` opens JupyterLab. Both are manual — there is no
-scheduled refresh. `data/` is gitignored and fully reproducible.
+snapshot; `just embed` builds the vector index at `data/vectors/` (one Chroma
+collection per channel) plus its `data/vectors.meta.json` sidecar; `just notebook`
+opens JupyterLab. All are manual — there is no scheduled refresh. `data/` is
+gitignored and fully reproducible.
+
+`just embed` needs the optional model half (`uv sync --extra embed`), which is
+kept out of the default install because it pulls torch. Nothing in `mtg_rag.embed`
+may import `sentence_transformers` or `torch` at module scope — see
+`tests/test_embed_imports.py`.
 
 ## Git practices
 
