@@ -19,15 +19,13 @@ from chromadb.api import ClientAPI
 from chromadb.config import Settings
 from numpy.typing import NDArray
 
-from mtg_rag.embed.config import CHANNELS
 from mtg_rag.store.chroma import (
-    collection_name,
     open_collection,
     reset_collection,
     search,
     write_vectors,
 )
-from mtg_rag.store.config import ANONYMIZED_TELEMETRY, COLLECTION_PREFIX
+from mtg_rag.store.config import ANONYMIZED_TELEMETRY
 
 EAST = [1.0, 0.0]
 NEAR_EAST = [0.92, 0.39]
@@ -63,14 +61,6 @@ def populated(client: ClientAPI) -> Collection:
         _vectors(EAST, NORTH, NEAR_EAST),
     )
     return collection
-
-
-# --- naming -----------------------------------------------------------------
-
-
-def test_collection_name_is_prefixed_per_channel() -> None:
-    assert collection_name("oracle") == f"{COLLECTION_PREFIX}oracle"
-    assert len({collection_name(channel) for channel in CHANNELS}) == len(CHANNELS)
 
 
 # --- collection configuration ----------------------------------------------

@@ -2,11 +2,6 @@
 
 from __future__ import annotations
 
-#: Collection names are this prefix plus the channel — "cards_oracle". One
-#: collection per channel, because the channels index different card counts
-#: ([ADR 0014]) and are searched independently before fusion ([ADR 0008]).
-COLLECTION_PREFIX = "cards_"
-
 #: Distance space. Chroma's default is `l2`; the encoder emits unit-norm
 #: vectors and ranking is cosine, so this is set explicitly on every collection.
 DISTANCE_SPACE = "cosine"

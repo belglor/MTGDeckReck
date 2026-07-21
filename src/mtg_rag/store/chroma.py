@@ -27,12 +27,7 @@ from chromadb.errors import NotFoundError
 from numpy.typing import NDArray
 
 from mtg_rag.embed.config import Channel
-from mtg_rag.store.config import ANONYMIZED_TELEMETRY, COLLECTION_PREFIX, DISTANCE_SPACE
-
-
-def collection_name(channel: Channel) -> str:
-    """`"oracle"` -> `"cards_oracle"`."""
-    return f"{COLLECTION_PREFIX}{channel}"
+from mtg_rag.store.config import ANONYMIZED_TELEMETRY, DISTANCE_SPACE
 
 
 def open_client(vector_dir: Path) -> ClientAPI:
@@ -53,7 +48,7 @@ def _create(client: ClientAPI, channel: Channel) -> Collection:
     should ever be embedded here.
     """
     return client.create_collection(
-        collection_name(channel),
+        channel,
         embedding_function=None,
         configuration={"hnsw": {"space": DISTANCE_SPACE}},
     )
@@ -68,7 +63,7 @@ def reset_collection(client: ClientAPI, channel: Channel) -> Collection:
     would otherwise trip over.
     """
     with suppress(NotFoundError):
-        client.delete_collection(collection_name(channel))
+        client.delete_collection(channel)
     return _create(client, channel)
 
 
@@ -78,7 +73,7 @@ def open_collection(client: ClientAPI, channel: Channel) -> Collection:
     `embedding_function=None` matters on the read path too, for the same reason
     it matters on create.
     """
-    return client.get_collection(collection_name(channel), embedding_function=None)
+    return client.get_collection(channel, embedding_function=None)
 
 
 def write_vectors(
