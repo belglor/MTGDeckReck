@@ -14,8 +14,7 @@ which is normal rather than an error ([ADR 0014]).
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from contextlib import suppress
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import chromadb
@@ -23,7 +22,6 @@ import numpy as np
 from chromadb import Collection
 from chromadb.api import ClientAPI
 from chromadb.config import Settings
-from chromadb.errors import NotFoundError
 from numpy.typing import NDArray
 
 from mtg_rag.embed.config import Channel
@@ -59,10 +57,10 @@ def reset_collection(client: ClientAPI, channel: Channel) -> Collection:
 
     Rebuilding wholesale is what keeps the index from drifting out of step with
     the parquet ([ADR 0015]) — there is no incremental state to get wrong.
-    Deleting a collection that was never created raises, which a first-ever run
-    would otherwise trip over.
+    Deleting a collection that was never created raises, so a first-ever run
+    would otherwise trip over its own cleanup.
     """
-    with suppress(NotFoundError):
+    if channel in {existing.name for existing in client.list_collections()}:
         client.delete_collection(channel)
     return _create(client, channel)
 
@@ -79,21 +77,23 @@ def open_collection(client: ClientAPI, channel: Channel) -> Collection:
 def write_vectors(
     client: ClientAPI,
     collection: Collection,
-    ids: Sequence[str],
-    vectors: NDArray[np.float32],
+    vectors: Mapping[str, NDArray[np.float32]],
 ) -> int:
-    """Add `vectors` under `ids`, in chunks the client will accept.
+    """Add each `oracle_id`'s vector, in chunks the client will accept.
+
+    Taking a mapping rather than parallel id and vector sequences makes it
+    impossible to pair them up wrongly — there is no ordering for a caller to
+    get out of step. Iterating a 2-D array of embeddings yields row views, so
+    building this mapping from an encoder's output copies nothing.
 
     The maximum batch size is SQLite-derived and platform-dependent, so it is
     queried from the client rather than hardcoded.
     """
-    if len(ids) != len(vectors):
-        raise ValueError(f"{len(ids)} ids but {len(vectors)} vectors — they must correspond")
-
+    ids = list(vectors)
     limit = client.get_max_batch_size()
     for start in range(0, len(ids), limit):
-        chunk = slice(start, start + limit)
-        collection.add(ids=list(ids[chunk]), embeddings=vectors[chunk])
+        chunk = ids[start : start + limit]
+        collection.add(ids=chunk, embeddings=[vectors[card_id] for card_id in chunk])
     return len(ids)
 
 
@@ -103,8 +103,13 @@ def search(
     *,
     allow_ids: Sequence[str] | None,
     n_results: int,
-) -> list[tuple[str, float]]:
-    """Nearest ids to `query_vector`, closest first, as `(oracle_id, distance)`.
+) -> dict[str, float]:
+    """Distances to `query_vector` by `oracle_id`, **nearest first**.
+
+    Iteration order is rank order. That ordering is the payload, not a
+    convenience: fusion is over ordinal position rather than raw score
+    ([ADR 0008]), so a caller reads rank by enumerating this mapping. Ids are
+    unique within a collection, so nothing collides on the way in.
 
     `allow_ids` constrains the search before ranking ([ADR 0010]); `None` means
     unconstrained. Chroma pre-filters, so a constrained query returns a full
@@ -118,7 +123,7 @@ def search(
     if allow_ids is not None and not allow_ids:
         # Nothing is permitted, so there is nothing to ask. Chroma handles an
         # empty allowlist correctly; this just skips a pointless round trip.
-        return []
+        return {}
 
     result = collection.query(
         query_embeddings=[query_vector],
@@ -130,4 +135,4 @@ def search(
     distances = result["distances"]
     if distances is None:  # pragma: no cover - we always ask for distances
         raise RuntimeError("chroma returned no distances despite include=['distances']")
-    return list(zip(result["ids"][0], distances[0], strict=True))
+    return dict(zip(result["ids"][0], distances[0], strict=True))
