@@ -48,6 +48,11 @@ CHANNELS: tuple[Channel, ...] = tuple(CHANNEL_SOURCES)
 #: out at each call site.
 TEXT_COLUMN = "text"
 
+#: On-disk names for the vector index and its provenance sidecar, under whatever
+#: --data-dir the CLI is given. Mirrors `ingest/config.py`'s corpus names.
+VECTOR_DIR_NAME = "vectors"
+VECTOR_SIDECAR_NAME = "vectors.meta.json"
+
 #: The embedding model ([ADR 0012]): Apache 2.0, ~600M parameters, and the
 #: strongest open-weight option that fits the target RTX 2070.
 MODEL_ID = "Qwen/Qwen3-Embedding-0.6B"
