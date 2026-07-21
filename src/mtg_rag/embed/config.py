@@ -47,3 +47,24 @@ CHANNELS: tuple[Channel, ...] = tuple(CHANNEL_SOURCES)
 #: encoder and the CLI read it, so it is named once here rather than spelled
 #: out at each call site.
 TEXT_COLUMN = "text"
+
+#: The embedding model ([ADR 0012]): Apache 2.0, ~600M parameters, and the
+#: strongest open-weight option that fits the target RTX 2070.
+MODEL_ID = "Qwen/Qwen3-Embedding-0.6B"
+
+#: Vector width the model emits. Changing this invalidates the index and resets
+#: the recall baseline ([ADR 0011]) — the sidecar compares it for that reason.
+#: The model is trained with Matryoshka representation learning, so this is
+#: truncatable later without retraining, as a measured change rather than a
+#: guess.
+EMBEDDING_DIM = 1024
+
+#: Token cap per text. The model's own default is 32K, which would pad every
+#: short card to an absurd width; oracle text runs to a p99 of ~448 characters,
+#: so this bounds padding cost without truncating real cards.
+MAX_SEQ_LENGTH = 512
+
+#: Texts per forward pass. Documents are embedded in bulk during `just embed`;
+#: queries arrive a few at a time per request, so they use a smaller batch.
+DOCUMENT_BATCH_SIZE = 128
+QUERY_BATCH_SIZE = 32
