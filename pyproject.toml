@@ -7,6 +7,14 @@ requires-python = ">=3.12"
 dependencies = [
     "httpx>=0.28",
     "polars>=1.0",
+    # The vector store. A request-time dependency: retrieval reads it, so it
+    # belongs in the default install. The embedding model does not — that is an
+    # opt-in extra, so nothing here drags in torch.
+    "chromadb>=1.5.9",
+    # Vectors cross the store boundary as numpy arrays, and polars' public
+    # signatures reference numpy types (which resolve to Unknown under pyright
+    # strict when numpy is absent).
+    "numpy>=2.0",
 ]
 
 [build-system]
@@ -24,9 +32,6 @@ dev = [
     "pre-commit>=4.0",
     "jupyterlab>=4.0",
     "nbstripout>=0.8",
-    # Not imported by our code. polars' public signatures reference numpy types,
-    # which resolve to Unknown under pyright strict when numpy is absent.
-    "numpy>=2.0",
 ]
 
 [tool.ruff]
