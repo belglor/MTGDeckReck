@@ -32,8 +32,8 @@ NEAR_EAST = [0.92, 0.39]
 NORTH = [0.0, 1.0]
 
 
-def _vectors(*rows: list[float]) -> NDArray[np.float32]:
-    return np.array(rows, dtype=np.float32)
+def _vectors(**rows: list[float]) -> dict[str, NDArray[np.float32]]:
+    return {card_id: np.array(row, dtype=np.float32) for card_id, row in rows.items()}
 
 
 def _query(row: list[float]) -> NDArray[np.float32]:
@@ -54,12 +54,7 @@ def client() -> Iterator[ClientAPI]:
 @pytest.fixture
 def populated(client: ClientAPI) -> Collection:
     collection = reset_collection(client, "oracle")
-    write_vectors(
-        client,
-        collection,
-        ["east", "north", "near_east"],
-        _vectors(EAST, NORTH, NEAR_EAST),
-    )
+    write_vectors(client, collection, _vectors(east=EAST, north=NORTH, near_east=NEAR_EAST))
     return collection
 
 
@@ -91,10 +86,12 @@ def test_collection_uses_cosine_space(client: ClientAPI) -> None:
 
 
 def test_search_returns_nearest_id_first(populated: Collection) -> None:
+    # Iteration order is rank order. Fusion reads ordinal position rather than
+    # raw score (ADR 0008), so this ordering is the payload, not a convenience.
     hits = search(populated, _query(EAST), allow_ids=None, n_results=3)
 
-    assert [card_id for card_id, _ in hits] == ["east", "near_east", "north"]
-    assert hits[0][1] == pytest.approx(0.0, abs=1e-6)
+    assert list(hits) == ["east", "near_east", "north"]
+    assert hits["east"] == pytest.approx(0.0, abs=1e-6)
 
 
 def test_search_is_constrained_to_the_id_allowlist(populated: Collection) -> None:
@@ -103,11 +100,11 @@ def test_search_is_constrained_to_the_id_allowlist(populated: Collection) -> Non
     # allowlist constrains the search rather than filtering afterwards.
     hits = search(populated, _query(EAST), allow_ids=["north"], n_results=3)
 
-    assert [card_id for card_id, _ in hits] == ["north"]
+    assert list(hits) == ["north"]
 
 
 def test_search_with_an_empty_allowlist_returns_nothing(populated: Collection) -> None:
-    assert search(populated, _query(EAST), allow_ids=[], n_results=3) == []
+    assert search(populated, _query(EAST), allow_ids=[], n_results=3) == {}
 
 
 def test_search_requests_no_documents_or_metadata(
@@ -152,8 +149,7 @@ def test_write_chunks_batches_larger_than_the_client_limit(
     written = write_vectors(
         client,
         collection,
-        ["a", "b", "c", "d", "e"],
-        _vectors(EAST, NORTH, NEAR_EAST, EAST, NORTH),
+        _vectors(a=EAST, b=NORTH, c=NEAR_EAST, d=EAST, e=NORTH),
     )
 
     assert batch_sizes == [2, 2, 1]
@@ -161,10 +157,11 @@ def test_write_chunks_batches_larger_than_the_client_limit(
     assert collection.count() == 5
 
 
-def test_write_rejects_mismatched_ids_and_vectors(client: ClientAPI) -> None:
-    collection = reset_collection(client, "oracle")
-    with pytest.raises(ValueError, match="ids"):
-        write_vectors(client, collection, ["a", "b"], _vectors(EAST))
+def test_written_vectors_are_retrievable_by_their_own_id(populated: Collection) -> None:
+    # Each id keeps the vector it was mapped to, rather than whichever one
+    # happened to share its position.
+    hits = search(populated, _query(NORTH), allow_ids=None, n_results=1)
+    assert list(hits) == ["north"]
 
 
 # --- reset ------------------------------------------------------------------
@@ -178,6 +175,5 @@ def test_reset_collection_discards_previous_vectors(
 
 
 def test_reset_collection_succeeds_when_none_exists(client: ClientAPI) -> None:
-    # Chroma raises NotFoundError when deleting a collection that isn't there,
-    # so a first-ever run must not trip over its own cleanup.
+    # A first-ever run has nothing to drop, so the existence check has to hold.
     assert reset_collection(client, "flavor").count() == 0
