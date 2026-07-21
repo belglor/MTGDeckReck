@@ -14,7 +14,7 @@ import polars as pl
 import pytest
 
 from mtg_rag.embed.channels import channel_expr, channel_frame
-from mtg_rag.embed.config import CHANNELS, TEXT_COLUMN, Channel
+from mtg_rag.embed.config import CHANNEL_SOURCES, CHANNELS, TEXT_COLUMN, Channel
 from mtg_rag.ingest.normalize import build_frame, normalize_card
 
 FIXTURES = Path(__file__).parent / "fixtures" / "cards.jsonl"
@@ -138,3 +138,12 @@ def test_channel_frame_excludes_cards_the_corpus_predicate_rejects(
 def test_unknown_channel_raises() -> None:
     with pytest.raises(ValueError, match="unknown channel"):
         channel_expr(cast("Channel", "rulings"))
+
+
+def test_every_channel_source_is_a_corpus_column(frame: pl.DataFrame) -> None:
+    # The channel-to-content pairing is editable data, so a typo in it would
+    # otherwise surface as a polars ColumnNotFound part-way through an
+    # embedding run rather than here.
+    for channel, sources in CHANNEL_SOURCES.items():
+        for column in sources:
+            assert column in frame.columns, f"channel {channel!r} names missing {column!r}"

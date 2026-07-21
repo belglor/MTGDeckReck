@@ -13,13 +13,35 @@ lets the longest dominate and blurs the signal that makes each useful.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Literal
 
 #: One semantic channel. Doubles as the per-channel collection suffix.
 type Channel = Literal["oracle", "flavor", "type"]
 
-#: Every channel, in the order they are built and reported.
-CHANNELS: tuple[Channel, ...] = ("oracle", "flavor", "type")
+#: Which corpus columns each channel embeds, in join order — the channel-to-
+#: content pairing. Kept here so re-pointing a channel, or adding one, is an
+#: edit to data rather than to the composition logic that reads it.
+#:
+#: The card name appears under `oracle` and nowhere else, and that is a decision
+#: rather than an omission ([ADR 0007]): a name is a rules-text-adjacent
+#: identifier, so it belongs with rules prose, while the type line is a
+#: controlled vocabulary that a name would dilute. Adding "name" to another
+#: channel changes retrieval behavior and wants the ADR revisited, not just this
+#: mapping edited.
+CHANNEL_SOURCES: Mapping[Channel, tuple[str, ...]] = {
+    "oracle": ("name", "oracle_text"),
+    "flavor": ("flavor_text",),
+    "type": ("type_line",),
+}
+
+#: Joins a channel's columns where it reads more than one. Only `oracle` does
+#: today, so this is deliberately one separator rather than one per channel.
+CHANNEL_SOURCE_SEPARATOR = "\n"
+
+#: Every channel, in the order they are built and reported. Derived, so the
+#: mapping above stays the single place a channel is added or removed.
+CHANNELS: tuple[Channel, ...] = tuple(CHANNEL_SOURCES)
 
 #: Name of the composed-text column in the frame `channel_frame` returns. The
 #: encoder and the CLI read it, so it is named once here rather than spelled

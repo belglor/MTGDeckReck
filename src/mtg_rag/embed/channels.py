@@ -18,26 +18,28 @@ from __future__ import annotations
 import polars as pl
 
 from mtg_rag.corpus import is_real_card
-from mtg_rag.embed.config import TEXT_COLUMN, Channel
+from mtg_rag.embed.config import (
+    CHANNEL_SOURCE_SEPARATOR,
+    CHANNEL_SOURCES,
+    TEXT_COLUMN,
+    Channel,
+)
 
 
 def channel_expr(channel: Channel) -> pl.Expr:
     """The text expression for one channel, before absence filtering.
 
-    The card name is folded into the oracle channel and nowhere else
-    ([ADR 0007]): a name is a rules-text-adjacent identifier, and that argument
-    does not extend to the type line, which is a controlled vocabulary rather
-    than prose. `concat_str` propagates nulls by design, so a vanilla card with
-    no oracle text composes to null here and is dropped by `channel_frame`
-    rather than embedded as a bare name.
+    Which columns a channel reads is configuration (`CHANNEL_SOURCES`); this
+    only assembles them. `concat_str` propagates nulls by design, so a card
+    missing any column its channel names composes to null here and is dropped by
+    `channel_frame` rather than embedded as a partial string — which is what
+    stops a vanilla card being indexed as a bare name ([ADR 0014]).
     """
-    if channel == "oracle":
-        return pl.concat_str([pl.col("name"), pl.col("oracle_text")], separator="\n")
-    if channel == "flavor":
-        return pl.col("flavor_text")
-    if channel == "type":
-        return pl.col("type_line")
-    raise ValueError(f"unknown channel: {channel!r}")
+    try:
+        sources = CHANNEL_SOURCES[channel]
+    except KeyError:
+        raise ValueError(f"unknown channel: {channel!r}") from None
+    return pl.concat_str([pl.col(column) for column in sources], separator=CHANNEL_SOURCE_SEPARATOR)
 
 
 def channel_frame(frame: pl.DataFrame, channel: Channel) -> pl.DataFrame:
