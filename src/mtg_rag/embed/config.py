@@ -47,3 +47,43 @@ CHANNELS: tuple[Channel, ...] = tuple(CHANNEL_SOURCES)
 #: encoder and the CLI read it, so it is named once here rather than spelled
 #: out at each call site.
 TEXT_COLUMN = "text"
+
+#: The embedding model ([ADR 0012]): Apache 2.0, ~600M parameters, and the
+#: strongest open-weight option that fits the target RTX 2070.
+MODEL_ID = "Qwen/Qwen3-Embedding-0.6B"
+
+#: Vector width the model emits. Changing this invalidates the index and resets
+#: the recall baseline ([ADR 0011]) — the sidecar compares it for that reason.
+#: The model is trained with Matryoshka representation learning, so this is
+#: truncatable later without retraining, as a measured change rather than a
+#: guess.
+EMBEDDING_DIM = 1024
+
+#: Token cap per text. The model's own default is 32K, which would pad every
+#: short card to an absurd width; oracle text runs to a p99 of ~448 characters,
+#: so this bounds padding cost without truncating real cards.
+MAX_SEQ_LENGTH = 512
+
+#: Texts per forward pass. Documents are embedded in bulk during `just embed`;
+#: queries arrive a few at a time per request, so they use a smaller batch.
+DOCUMENT_BATCH_SIZE = 128
+QUERY_BATCH_SIZE = 32
+
+#: Attention kernel. `sdpa` ships with torch, needs no extra package, and runs
+#: on every backend below. flash-attention-2 is deliberately not requested: it
+#: would need `flash-attn` installed and Ampere or newer, and it is not a
+#: dependency this project carries.
+ATTENTION_IMPLEMENTATION = "sdpa"
+
+#: Compute dtype per detected device capability — the hardware assumption made
+#: explicit, rather than one machine's answer hardcoded at the call site.
+#: bfloat16 needs Ampere or newer (sm_80+); Turing (sm_75), the RTX 2070 class
+#: this was first written for, offers float16 only. CPU gets float32: half
+#: precision there is slow and unevenly supported, and the routed Linux wheel is
+#: a CPU build, so that path is reachable rather than hypothetical.
+TORCH_DTYPE_BY_CAPABILITY: Mapping[str, str] = {
+    "cuda-bf16": "bfloat16",
+    "cuda": "float16",
+    "mps": "float16",
+    "cpu": "float32",
+}

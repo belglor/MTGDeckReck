@@ -17,6 +17,18 @@ dependencies = [
     "numpy>=2.0",
 ]
 
+[project.optional-dependencies]
+# Only the machine that runs `just embed` needs these — roughly 2.5 GB of model
+# harness. Kept out of the default install so `just setup`, CI, and anything
+# that only queries an existing index never pay for torch. Install with
+# `uv sync --extra embed`.
+embed = [
+    # 5.0 is the floor for encode_query()/encode_document(), which carry the
+    # model's asymmetric prompts ([ADR 0012]).
+    "sentence-transformers>=5.0",
+    "torch",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -32,6 +44,29 @@ dev = [
     "pre-commit>=4.0",
     "jupyterlab>=4.0",
     "nbstripout>=0.8",
+]
+
+# Torch needs explicit index routing, because neither default is what we want:
+# the default Windows wheel is CPU-only (useless on the RTX 2070 this embeds on)
+# and the default Linux wheel is the full CUDA build (gigabytes, for machines
+# that only ever run the tests). cu128 supports sm_75, so Turing is covered.
+# `explicit = true` stops these indexes serving any package but torch.
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+# macOS is deliberately unrouted: PyPI's default wheel is already the right one
+# there, carrying CPU and MPS support.
+torch = [
+    { index = "pytorch-cu128", marker = "sys_platform == 'win32'" },
+    { index = "pytorch-cpu", marker = "sys_platform == 'linux'" },
 ]
 
 [tool.ruff]
