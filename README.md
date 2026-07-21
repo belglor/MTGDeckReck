@@ -59,6 +59,11 @@ The model id and vector dimension live in `src/mtg_rag/embed/config.py`. Changin
 either invalidates the index and starts a new retrieval baseline rather than
 continuing the old one. Compute dtype is detected from the hardware.
 
+`notebooks/02-embedding-exploration.ipynb` inspects the result: channel coverage,
+whether cards sharing a creature type actually sit closer together, how often a
+keyword query returns cards whose text contains that keyword, and what
+flavour-phrased queries surface across the three channels.
+
 URLs, file names, and separators the ingester depends on live in
 `src/mtg_rag/ingest/config.py`. The one value read from the environment is
 `SCRYFALL_USER_AGENT` — Scryfall asks API clients to identify themselves with
