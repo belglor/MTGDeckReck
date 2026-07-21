@@ -23,6 +23,7 @@ from numpy.typing import NDArray
 
 from mtg_rag.embed.config import (
     ATTENTION_IMPLEMENTATION,
+    BF16_MIN_COMPUTE_MAJOR,
     DOCUMENT_BATCH_SIZE,
     EMBEDDING_DIM,
     MAX_SEQ_LENGTH,
@@ -81,11 +82,19 @@ def detect_capability(torch: Any) -> str:
     dtype is testable on a machine with no torch at all — which is every machine
     that has not opted into the `embed` extra, including CI.
 
-    Ordered by preference: bf16-capable CUDA, then any CUDA, then Apple's MPS,
-    then CPU as the floor.
+    Ordered by preference: natively bf16-capable CUDA, then any CUDA, then
+    Apple's MPS, then CPU as the floor.
+
+    The bf16 tier is decided on compute capability rather than on
+    `torch.cuda.is_bf16_supported()`, which answers True on Turing as well —
+    it counts emulation. Emulated bf16 runs, but without a tensor-core path it
+    is slower than the float16 those cards do accelerate, so believing that
+    call would quietly pick the worse dtype on exactly the hardware this
+    project targets.
     """
     if torch.cuda.is_available():
-        return "cuda-bf16" if torch.cuda.is_bf16_supported() else "cuda"
+        major, _minor = torch.cuda.get_device_capability()
+        return "cuda-bf16" if major >= BF16_MIN_COMPUTE_MAJOR else "cuda"
     mps = getattr(torch.backends, "mps", None)
     if mps is not None and mps.is_available():
         return "mps"

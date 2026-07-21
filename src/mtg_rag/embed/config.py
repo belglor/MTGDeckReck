@@ -80,6 +80,13 @@ QUERY_BATCH_SIZE = 32
 #: dependency this project carries.
 ATTENTION_IMPLEMENTATION = "sdpa"
 
+#: CUDA compute-capability major version at which bfloat16 becomes *native*:
+#: Ampere, sm_80. Below it torch still reports bf16 as supported, because
+#: `torch.cuda.is_bf16_supported()` counts emulation — measured True on a
+#: Turing RTX 2070 (sm_75), where bf16 has no tensor-core path and is slower
+#: than plain float16. The tier is decided on this number for that reason.
+BF16_MIN_COMPUTE_MAJOR = 8
+
 #: Compute dtype per detected device capability — the hardware assumption made
 #: explicit, rather than one machine's answer hardcoded at the call site.
 #: bfloat16 needs Ampere or newer (sm_80+); Turing (sm_75), the RTX 2070 class
