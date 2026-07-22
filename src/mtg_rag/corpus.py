@@ -37,19 +37,11 @@ from mtg_rag.corpus_config import EXCLUDED_LAYOUTS, EXCLUDED_SET_TYPES
 def is_real(layout: str | None, set_type: str | None) -> bool:
     """`is_real_card` for one card's values instead of a frame's columns.
 
-    Ingestion needs this shape before a frame exists: `merge` picks which
-    printing represents a card, and a printing that is not itself a real card
-    must not be allowed to win. Tundra's most recent printing is 30th
-    Anniversary Edition — `set_type: memorabilia` — so ranking purely by date
-    would stamp a memorabilia set type onto a real card and drop it out of the
-    index entirely, along with 300-odd others.
+    `ingest.merge` needs the check before a frame exists, to stop a non-card
+    printing from representing a real card ([ADR 0016]).
 
-    An absent value is *not* a real card ([ADR 0017]): these two fields are what
-    classifies the object, so without them there is no basis to call it a card.
-    Ingestion refuses to project such a printing at all, which makes this
-    unreachable from `just ingest` and leaves it guarding frames built by other
-    routes — a notebook, a test — where the alternative is polars' null
-    propagation dropping the row for an unrelated reason.
+    An absent value is not a real card ([ADR 0017]): these two fields are the
+    whole basis for the judgement, so without them there is nothing to judge on.
     """
     if layout is None or set_type is None:
         return False

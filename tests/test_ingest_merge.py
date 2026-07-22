@@ -193,10 +193,9 @@ def test_a_card_with_no_dated_printing_still_merges() -> None:
 
 
 def test_a_memorabilia_printing_never_represents_a_real_card() -> None:
-    # Tundra's most recent printing is 30th Anniversary Edition, which is
-    # `set_type: memorabilia` and therefore not a real card ([ADR 0013]).
-    # Ranking on date alone hands the card that set type and drops it out of the
-    # index — measured at 302 real cards, Mox Jet among them.
+    # The Tundra case ([ADR 0016]): a memorabilia reprint as representative
+    # hands a real card a non-card's set type, and the predicate then discards
+    # the card itself.
     merged = merge_printings(
         [
             _printing(set_code="lea", set_type="core", released_at="1993-08-05"),

@@ -34,18 +34,13 @@ from mtg_rag.ingest.normalize import CardRecord
 
 #: How printings of one card are ordered, best last.
 #:
-#: Being a real printing outranks being a recent one ([ADR 0013]). Tundra's most
-#: recent printing is 30th Anniversary Edition, whose `set_type` is
-#: `memorabilia`; letting it represent the card would stamp a non-card's set type
-#: onto a real card and drop it out of the index — measured at 302 cards,
-#: including Mox Jet and the World Championship reprints. A card whose printings
-#: are *all* structural non-cards, a token say, still merges; it is simply
-#: excluded downstream, as it should be.
+#: Being a real printing outranks being a recent one: otherwise a memorabilia
+#: reprint represents the card, and the structural predicate then discards the
+#: card itself ([ADR 0016]). A card whose printings are all non-cards still
+#: merges, and is excluded downstream.
 #:
-#: Below that, release date decides, and set code only breaks ties so two runs
-#: over the same data agree on which of two same-day printings won. A printing
-#: with no release date sorts to the bottom — it cannot be shown to be the most
-#: recent, so it does not get to be.
+#: Then release date, with set code breaking ties so repeated runs agree. A
+#: printing with no date sorts last — it cannot be shown to be the most recent.
 type _Order = tuple[bool, str, str]
 
 
