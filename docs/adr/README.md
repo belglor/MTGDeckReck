@@ -26,3 +26,5 @@ This directory records the significant architectural decisions for this project 
 - [0013](0013-structural-card-predicate.md) — Exclude only structural non-cards from the index
 - [0014](0014-absent-channel-no-vector.md) — An absent channel produces no vector, never a zero vector
 - [0015](0015-wholesale-index-rebuild.md) — Rebuild the vector index wholesale; no incremental reconciliation
+- [0016](0016-ingest-every-printing.md) — Ingest every printing and collapse it with an explicit representative-printing rule
+- [0017](0017-structural-completeness-is-required.md) — A printing missing `layout` or `set_type` is refused at ingestion

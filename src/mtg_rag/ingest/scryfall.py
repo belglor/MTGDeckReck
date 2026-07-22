@@ -1,9 +1,12 @@
-"""Download Scryfall's `oracle_cards` bulk snapshot to a local corpus.
+"""Download Scryfall's `default_cards` bulk snapshot to a local corpus.
 
 Network fetch, streaming, and idempotency live here. The projection from a raw
 card object to a `CardRecord` — the part that decides what a card *means* to
 this project — lives in `mtg_rag.ingest.normalize`; see [ADR 0002] for why
 that module joins multi-face cards rather than splitting them across rows.
+
+The snapshot holds one object per *printing* ([ADR 0016]), so what streams out
+of here is printings, not cards. `mtg_rag.ingest.merge` collapses them.
 """
 
 from __future__ import annotations
@@ -18,7 +21,13 @@ from typing import Any, Self, cast
 import httpx
 import polars as pl
 
-from mtg_rag.ingest.config import BULK_INDEX_URL, DEFAULT_BULK_TYPE, FACE_SEPARATOR, USER_AGENT
+from mtg_rag.ingest.config import (
+    BULK_INDEX_URL,
+    BULK_TYPE,
+    CORPUS_LANGUAGE,
+    FACE_SEPARATOR,
+    USER_AGENT,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,7 +108,21 @@ def _int_or_none(value: Any) -> int | None:
     return None
 
 
-def fetch_bulk_entry(client: httpx.Client, bulk_type: str = DEFAULT_BULK_TYPE) -> BulkEntry:
+def is_english(raw: Mapping[str, Any]) -> bool:
+    """Whether a printing is the English one we want in the corpus.
+
+    A missing `lang` counts as English. Scryfall always sets it, so this only
+    decides what happens to a malformed object — and keeping a card we should
+    have dropped is a far smaller error than dropping a real card on the basis
+    of an absent field.
+    """
+    lang: Any = raw.get("lang")
+    if not isinstance(lang, str):
+        return True
+    return lang == CORPUS_LANGUAGE
+
+
+def fetch_bulk_entry(client: httpx.Client, bulk_type: str = BULK_TYPE) -> BulkEntry:
     """Look up one entry in Scryfall's bulk-data index."""
     response = client.get(BULK_INDEX_URL)
     response.raise_for_status()
@@ -117,7 +140,8 @@ def fetch_bulk_entry(client: httpx.Client, bulk_type: str = DEFAULT_BULK_TYPE) -
         if record.get("type") != bulk_type:
             continue
         # Prefer the gzipped NDJSON variant: it streams line by line, where the
-        # plain .json variant is a single ~180 MB array.
+        # plain .json variant is a single ~560 MB array. It is also a quarter of
+        # the bytes — 72.6 MB against 557.6 MB.
         uri = _str_or_none(record, "jsonl_download_uri") or _str_or_none(record, "download_uri")
         updated_at = _str_or_none(record, "updated_at")
         if uri is None or updated_at is None:
