@@ -46,7 +46,9 @@ Across the 34,201 real cards in the corpus:
 | Arena-exclusive real cards | 989 | 984 |
 | Cards with no platform at all | 0 | 18 |
 
-The one remaining commander-legal card without paper is `"Name Sticker" Goblin`, which has a single printing, in the paper set Unfinity, that Scryfall itself reports as MTGO-only. That is upstream being wrong, and one card is a reasonable amount of upstream to be wrong about.
+The one remaining commander-legal card without paper is `"Name Sticker" Goblin`, and the union is correct to place it there. It is a genuinely MTGO-only card: the paper `_____ Goblin` (a *separate* `oracle_id`) works by sticking physical name-stickers onto it, which MTGO cannot do, so a distinct MTGO-only card approximates the mechanic. Scryfall models it faithfully — its own `oracle_id`, `games: ["mtgo"]`, and commander-legal because it is legal in MTGO's Commander. Excluding it from a paper deck is exactly what the filter should do; the paper player gets `_____ Goblin` instead.
+
+It is a real member of a small class the invariant "commander-legal implies available in paper" cannot assume away: cards legal in a *digital* Commander format that have no paper printing. The class is tiny — this is the only one in the corpus — but it is genuine data, not an upstream error.
 
 The 18 cards with no platform are exactly the `astral` and `sega` sets described above.
 
@@ -57,4 +59,4 @@ The 18 cards with no platform are exactly the `astral` and `sega` sets described
 - Good, because a card's platforms no longer change when Scryfall re-picks its representative printing, which it does on every build
 - Bad, because `platforms` is now the second field, after flavor text, that ignores the representative-printing rule — the rule has two exceptions and any third deserves scrutiny
 - Bad, because dropping `astral` and `sega` at projection means the corpus can no longer answer a question about them at all, however unlikely that question is
-- Bad, because the corpus inherits upstream errors with no way to detect them: `"Name Sticker" Goblin` is wrong in the parquet because it is wrong at Scryfall
+- Neutral, because "commander-legal implies available in paper" is not quite true — a card legal only in digital Commander can lack a paper printing (`"Name Sticker" Goblin`) — so any invariant built on it has to allow a small margin rather than assert zero

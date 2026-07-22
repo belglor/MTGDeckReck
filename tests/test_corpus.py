@@ -184,9 +184,10 @@ def test_commander_legal_cards_are_available_in_paper() -> None:
 
     Reading `platforms` off one printing instead of unioning them leaves ~1,042
     commander-legal paper cards looking MTGO-only, so any regression here is
-    dramatic. The bound is loose rather than zero because Scryfall itself is
-    occasionally wrong: `"Name Sticker" Goblin` has a single printing, in the
-    paper set Unfinity, that upstream reports as MTGO-only.
+    dramatic. The bound is loose rather than zero because the invariant is not
+    strictly true: a card legal only in digital Commander can have no paper
+    printing. `"Name Sticker" Goblin` is the one such card in the corpus — a
+    genuinely MTGO-only port of the paper `_____ Goblin` — not an upstream error.
     """
     if not CORPUS.exists():
         pytest.skip(f"no corpus at {CORPUS}; run `just ingest`")
