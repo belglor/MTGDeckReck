@@ -37,6 +37,14 @@ may import `sentence_transformers` or `torch` at module scope — see
 
 TDD: write the test before the code it verifies. Don't chase coverage percentage — test core functionality, real logic branches, and edge cases (empty results, boundary values, malformed input). Skip tests that just restate the implementation.
 
+## Documentation
+
+Write for someone who hasn't read the rest of the repo — README, docstrings, issues, and PR descriptions alike.
+
+- Favor understandability over precision. If a plainer phrasing is nearly as accurate, use it and let the ADR carry the exact version.
+- Be concise and focused: answer the question at hand, skip context the reader doesn't need in order to act, and keep examples minimal.
+- Say a thing once. A decision lives in its ADR; code and `README.md` state the rule and link to it rather than retelling the reasoning.
+
 ## Guardrails
 
 - Don't add fields, hooks, or abstractions for a feature that isn't in current scope (`docs/spec.md`). If it turns out to be needed, that's a small diff later. Cite this rule if asked to add a "zero-cost hook" or similar forward-compatibility scaffolding.
