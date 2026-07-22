@@ -2,7 +2,7 @@
 
 MTGDeckReck: a RAG system that recommends Magic: The Gathering cards from natural-language user requests, favoring flavor and theme over competitiveness or meta.
 
-What it is and how it works: `docs/spec.md`. Why it works that way: `docs/adr/`.
+What it is and how it works: `docs/spec.md`. Why it works that way: `docs/adr/`. Terms used without explanation: `docs/glossary.md`.
 
 ## Commands
 
@@ -50,7 +50,7 @@ The issue template and the PR sections named above are shapes to fill, not quota
 ## Guardrails
 
 - Don't add fields, hooks, or abstractions for a feature that isn't in current scope (`docs/spec.md`). If it turns out to be needed, that's a small diff later. Cite this rule if asked to add a "zero-cost hook" or similar forward-compatibility scaffolding.
-- Module-level constants live in a config module, never in the preamble of the module that reads them. Exclusion lists, tunables, file and directory names, URLs, separators, model ids, dimensions, batch sizes — all of it goes in the config module for that area (`<package>/config.py` for a package, e.g. `ingest/config.py`; `<module>_config.py` for a package-root module, e.g. `corpus_config.py`), and the code that needs a value imports it. This keeps a module's logic and its data able to change independently: adding a layout or bumping a dimension is a one-line diff in a file whose whole job is holding values, not an edit inside the function that reads it.
+- Module-level constants live in a config module, never in the preamble of the module that reads them. Exclusion lists, tunables, file and directory names, URLs, separators, model ids, dimensions, batch sizes — all of it. Use `<package>/config.py` for a package (`ingest/config.py`) and `<module>_config.py` for a package-root module (`corpus_config.py`); the code that needs a value imports it. This keeps a module's logic and its data able to change independently, so adding a layout or bumping a dimension is a one-line diff in a file whose whole job is holding values.
 - After a feature lands, update `README.md` and this file to match.
 
 ## Agent context files
