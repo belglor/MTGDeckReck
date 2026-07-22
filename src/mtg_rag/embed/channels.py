@@ -1,12 +1,8 @@
 """Per-channel text composition — pure, with no I/O and no model.
 
 One row per card per channel, keyed by `oracle_id` ([ADR 0010]). A card with no
-text in a channel produces **no row**, never a blank or placeholder one: a zero
-vector is not a neutral point under cosine similarity, and a channel padded with
-placeholders would surface them as one mutual-neighbour blob regardless of the
-query. Absence composes correctly instead — a card missing from a channel's
-ranking contributes nothing from that channel, which is exactly true rather than
-a false zero ([ADR 0014]).
+text in a channel produces **no row**, never a blank or placeholder one — a zero
+vector is not a neutral point under cosine similarity ([ADR 0014]).
 
 What counts as a card is the corpus predicate's decision alone, so
 `channel_frame` applies it here rather than trusting every caller to remember

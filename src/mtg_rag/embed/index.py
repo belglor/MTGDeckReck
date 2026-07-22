@@ -5,12 +5,8 @@ was built from, answering exactly one question — is this index current for thi
 parquet and this model? If yes, `just embed` is a no-op; if no, every requested
 channel is rebuilt from scratch.
 
-There is deliberately no diff and no per-card reconciliation ([ADR 0015]).
-Detecting *which* cards changed would need per-channel content hashes stored
-somewhere, which [ADR 0010] already declined to add, and acting on the diff
-would need three code paths — insert, update, delete — each with its own way for
-the index to disagree silently with the parquet. A wholesale rebuild has one
-path and cannot drift, because it never carries state forward.
+There is deliberately no diff and no per-card reconciliation: a wholesale rebuild
+has one code path and cannot drift out of step with the parquet ([ADR 0015]).
 """
 
 from __future__ import annotations
