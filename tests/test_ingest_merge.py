@@ -61,7 +61,7 @@ def _printing(**overrides: Any) -> CardRecord:
         "set_name": "Limited Edition Alpha",
         "set_type": "core",
         "released_at": "1993-08-05",
-        "games": ["paper"],
+        "platforms": ["paper"],
         "reserved": False,
         "edhrec_rank": 1,
         "price_usd": 1.0,
@@ -249,6 +249,59 @@ def test_invariant_fields_come_through_unchanged() -> None:
     assert record.type_line == "Artifact"
     assert record.legalities == {"commander": "legal"}
     assert record.name == "Sol Ring"
+
+
+# --- platforms: unioned across every printing ------------------------------
+
+
+def test_platforms_union_across_printings() -> None:
+    # The Palinchron case in miniature: an MTGO-only reprint and a paper
+    # original. The card is playable on both, and neither printing says so
+    # alone.
+    merged = merge_printings(
+        [
+            _printing(set_code="ulg", released_at="1999-02-15", platforms=["paper", "mtgo"]),
+            _printing(set_code="vma", released_at="2014-06-16", platforms=["mtgo"]),
+        ]
+    )
+    assert merged[0].platforms == ["mtgo", "paper"]
+
+
+def test_platforms_ignore_the_representative_printing_rule() -> None:
+    # Every other single-valued field comes from the representative printing.
+    # Platforms do not: the union is the whole point, so a narrower newest
+    # printing must not shrink it.
+    merged = merge_printings(
+        [
+            _printing(set_code="lea", released_at="1993-08-05", platforms=["paper"]),
+            _printing(set_code="mkm", released_at="2024-02-09", platforms=["arena"]),
+        ]
+    )
+    assert merged[0].set_code == "mkm"
+    assert merged[0].platforms == ["arena", "paper"]
+
+
+def test_single_printing_card_keeps_its_own_platforms() -> None:
+    merged = merge_printings([_printing(platforms=["paper", "arena"])])
+    assert merged[0].platforms == ["arena", "paper"]
+
+
+def test_card_with_only_unknown_media_gets_empty_platforms() -> None:
+    # The ~18 astral / sega curiosities. They keep their row — excluding them
+    # is the platform filter's job, not ingestion's.
+    merged = merge_printings([_printing(platforms=[])])
+    assert len(merged) == 1
+    assert merged[0].platforms == []
+
+
+def test_platforms_are_deduplicated_and_ordered() -> None:
+    merged = merge_printings(
+        [
+            _printing(set_code="a", released_at="2000-01-01", platforms=["paper", "mtgo"]),
+            _printing(set_code="b", released_at="2001-01-01", platforms=["mtgo", "paper"]),
+        ]
+    )
+    assert merged[0].platforms == ["mtgo", "paper"]
 
 
 # --- flavor text: the documented exception ---------------------------------

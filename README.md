@@ -56,14 +56,21 @@ Everything lands in `data/`, which is gitignored. Delete it and re-run to restor
 `data/cards.parquet`.
 
 That snapshot holds one object per *printing* — 116k of them for 38k cards —
-because facts like which formats a card is legal in, or which platforms it exists
-on, can differ between printings and cannot be read off just one. Ingestion keeps
-the English printings and collapses them to one row per card: the most recent real
-printing supplies the card's set, rarity, release date and prices, so those always
-describe one physical object. Flavor text is the exception, taken from the most
-recent printing that actually has any — otherwise 1,800 cards whose latest reprint
-carries no flavor text would lose it. See
+because some facts differ between printings and cannot be read off just one.
+Ingestion keeps the English printings and collapses them to one row per card: the
+most recent real printing supplies the card's set, rarity, release date and
+prices, so those always describe one physical object. See
 [ADR 0016](docs/adr/0016-ingest-every-printing.md).
+
+Two fields ignore that rule, because for them no single printing has the right
+answer:
+
+- **Flavor text** comes from the most recent printing that actually has any.
+  Otherwise 1,800 cards whose latest reprint carries none would lose it.
+- **Platforms** — paper, MTGO, Arena — are the union across every printing.
+  Otherwise 1,042 commander-legal paper cards would look MTGO-only, because
+  Scryfall happened to pick an MTGO-only reprint to represent them. See
+  [ADR 0018](docs/adr/0018-card-level-platform-availability.md).
 
 Scryfall asks API clients to identify themselves with real contact details, which
 don't belong in committed source. Copy `.env.example` to `.env` (gitignored) and

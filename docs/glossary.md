@@ -22,6 +22,13 @@ object per card, and `default_cards` has one per printing. We ingest
 The one printing chosen to supply a card's single-valued fields — set, rarity,
 release date, prices. It is the most recent printing that is itself a real card.
 
+### platform
+
+Where a card can be played: `paper`, `mtgo` or `arena`. Scryfall records this per
+printing, so the corpus stores the union across all of a card's printings — an
+MTGO-only reprint doesn't make a paper card unavailable in paper. See
+[ADR 0018](adr/0018-card-level-platform-availability.md).
+
 ### oracle_id
 
 Scryfall's identifier for a *card*, stable across printings and reprints. Every
