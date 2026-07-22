@@ -16,7 +16,8 @@ from typing import Any
 import polars as pl
 import pytest
 
-from mtg_rag.corpus import is_real_card, real_cards
+from mtg_rag.corpus import is_real, is_real_card, real_cards
+from mtg_rag.corpus_config import EXCLUDED_LAYOUTS, EXCLUDED_SET_TYPES
 from mtg_rag.ingest.normalize import build_frame, normalize_card
 
 FIXTURES = Path(__file__).parent / "fixtures" / "cards.jsonl"
@@ -39,6 +40,37 @@ def survivors(cards: dict[str, dict[str, Any]]) -> set[str]:
     """Names of the fixtures that survive the predicate."""
     frame = build_frame([normalize_card(card) for card in cards.values()])
     return set(real_cards(frame)["name"].to_list())
+
+
+# --- the two shapes of one predicate ---------------------------------------
+# `is_real` exists so ingestion can rank a card's printings before a frame
+# exists. Two implementations of one rule can drift, so they are pinned to each
+# other rather than trusted to stay in step.
+
+
+def test_scalar_and_frame_predicates_agree() -> None:
+    layouts = [None, "normal", "saga", *sorted(EXCLUDED_LAYOUTS)]
+    set_types = [None, "core", "expansion", "planechase", *sorted(EXCLUDED_SET_TYPES)]
+    cases = [(layout, set_type) for layout in layouts for set_type in set_types]
+
+    frame = pl.DataFrame(
+        {"layout": [layout for layout, _ in cases], "set_type": [st for _, st in cases]},
+        schema={"layout": pl.String, "set_type": pl.String},
+    )
+    from_frame = frame.select(is_real_card().alias("real"))["real"].to_list()
+    from_scalar = [is_real(layout, set_type) for layout, set_type in cases]
+
+    assert from_scalar == from_frame
+
+
+def test_scalar_predicate_treats_absent_values_as_real() -> None:
+    assert is_real(None, None)
+
+
+def test_scalar_predicate_rejects_memorabilia() -> None:
+    # The 30th Anniversary Edition case that drops Tundra when a memorabilia
+    # printing is allowed to represent a real card.
+    assert not is_real("normal", "memorabilia")
 
 
 # --- real cards survive -----------------------------------------------------

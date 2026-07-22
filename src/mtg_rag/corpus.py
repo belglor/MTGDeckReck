@@ -1,5 +1,11 @@
-"""The structural "is this a real card" predicate, shared by `embed/` and
-`retrieve/`.
+"""The structural "is this a real card" predicate, shared by `ingest/`,
+`embed/` and `retrieve/`.
+
+It comes in two shapes over one definition: `is_real_card` as a polars
+expression for filtering a frame, and `is_real` for a single card's values,
+which ingestion needs while choosing between a card's printings and before any
+frame exists. Both read the same exclusion lists, and a test pins them to the
+same answers.
 
 Ingestion keeps every row Scryfall ships ([ADR 0009]): tokens, emblems,
 art-series prints, planes, schemes, vanguards, and a handful of `layout: normal`
@@ -22,6 +28,25 @@ from __future__ import annotations
 import polars as pl
 
 from mtg_rag.corpus_config import EXCLUDED_LAYOUTS, EXCLUDED_SET_TYPES
+
+
+def is_real(layout: str | None, set_type: str | None) -> bool:
+    """`is_real_card` for one card's values instead of a frame's columns.
+
+    Ingestion needs this shape before a frame exists: `merge` picks which
+    printing represents a card, and a printing that is not itself a real card
+    must not be allowed to win. Tundra's most recent printing is 30th
+    Anniversary Edition — `set_type: memorabilia` — so ranking purely by date
+    would stamp a memorabilia set type onto a real card and drop it out of the
+    index entirely, along with 300-odd others.
+
+    Null is treated as not-excluded, matching `is_real_card`'s `fill_null(False)`
+    for the same reason: a card is dropped only when a value actively matches an
+    exclusion list, never merely because a field is absent.
+    """
+    bad_layout = layout is not None and layout in EXCLUDED_LAYOUTS
+    bad_set_type = set_type is not None and set_type in EXCLUDED_SET_TYPES
+    return not (bad_layout or bad_set_type)
 
 
 def is_real_card() -> pl.Expr:
