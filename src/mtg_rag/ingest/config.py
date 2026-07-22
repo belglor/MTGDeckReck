@@ -50,8 +50,17 @@ USER_AGENT = os.environ.get("SCRYFALL_USER_AGENT", "MTGDeckReck/0.1")
 #: Scryfall's bulk-data index, listing where to download each bulk export.
 BULK_INDEX_URL = "https://api.scryfall.com/bulk-data"
 
-#: Which bulk-data export to ingest by default.
-DEFAULT_BULK_TYPE = "oracle_cards"
+#: Which bulk-data export to ingest. `default_cards` carries **every printing**
+#: — 116,138 objects against `oracle_cards`' 38,312 — because the facts that
+#: differ between printings can only be answered by seeing all of them. What one
+#: row of the corpus then contains is decided by `ingest.merge`, explicitly,
+#: rather than inherited from whichever printing `oracle_cards` happened to pick.
+BULK_TYPE = "default_cards"
+
+#: The language a card must be printed in to enter the corpus. `default_cards`
+#: falls back to a foreign printing for cards that have no English one at all,
+#: and those would otherwise reach the embedding channels.
+CORPUS_LANGUAGE = "en"
 
 #: Separator for text joined across a card's faces. Newlines keep the halves
 #: visually distinct in oracle and flavor text, matching how Scryfall renders

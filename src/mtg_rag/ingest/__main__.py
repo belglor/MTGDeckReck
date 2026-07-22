@@ -7,21 +7,54 @@ just ingest --force    # rebuild regardless
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterator
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
 from mtg_rag.cli import use_utf8_stdout
-from mtg_rag.ingest.config import CORPUS_NAME, DEFAULT_BULK_TYPE, SIDECAR_NAME
+from mtg_rag.ingest.config import BULK_TYPE, CORPUS_NAME, SIDECAR_NAME
+from mtg_rag.ingest.merge import merge_printings
 from mtg_rag.ingest.normalize import CardRecord, MalformedCardError, build_frame, normalize_card
 from mtg_rag.ingest.scryfall import (
     Snapshot,
     download,
     fetch_bulk_entry,
+    is_english,
     make_client,
     should_skip,
     stream_cards,
     summarize,
 )
+
+
+@dataclass(slots=True)
+class ReadStats:
+    """What the streaming pass saw, for the CLI to report afterwards.
+
+    `printings` against the final row count is the check that the collapse did
+    what it claims — roughly three printings per card.
+    """
+
+    printings: int = 0
+    skipped: list[str] = field(default_factory=list[str])
+
+
+def english_records(path: Path, stats: ReadStats) -> Iterator[CardRecord]:
+    """Project every English printing in the bulk file, counting as it goes.
+
+    A generator rather than a list: the bulk file holds 116,138 printings, and
+    `merge_printings` only ever needs the per-card aggregate, so nothing is
+    served by materializing all of them first.
+    """
+    for raw in stream_cards(path):
+        if not is_english(raw):
+            continue
+        stats.printings += 1
+        try:
+            yield normalize_card(raw)
+        except MalformedCardError as exc:
+            stats.skipped.append(str(exc))
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
@@ -37,8 +70,8 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--bulk-type",
-        default=DEFAULT_BULK_TYPE,
-        help=f"Scryfall bulk-data type to ingest (default: {DEFAULT_BULK_TYPE})",
+        default=BULK_TYPE,
+        help=f"Scryfall bulk-data type to ingest (default: {BULK_TYPE})",
     )
     parser.add_argument(
         "--force",
@@ -70,15 +103,10 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  downloading {entry.download_uri}")
             download(client, entry.download_uri, temp_path)
 
-            records: list[CardRecord] = []
-            skipped: list[str] = []
-            for raw in stream_cards(temp_path):
-                try:
-                    records.append(normalize_card(raw))
-                except MalformedCardError as exc:
-                    skipped.append(str(exc))
-
-            frame = build_frame(records)
+            stats = ReadStats()
+            # One card arrives once per printing, so the collapse to one record
+            # each ([ADR 0002]) happens here rather than in `build_frame`.
+            frame = build_frame(merge_printings(english_records(temp_path, stats)))
         finally:
             temp_path.unlink(missing_ok=True)
 
@@ -93,17 +121,18 @@ def main(argv: list[str] | None = None) -> int:
     ).write(sidecar_path)
 
     print(f"\nWrote {corpus_path} ({corpus_path.stat().st_size / 1e6:.1f} MB)")
+    print(f"  printings:    {stats.printings:,} English  ->  {frame.height:,} cards")
     for line in summarize(frame):
         print(f"  {line}")
 
-    if skipped:
+    if stats.skipped:
         # Surface these rather than swallowing them — a malformed card in
         # Scryfall's own export is worth knowing about.
-        print(f"\nSkipped {len(skipped)} malformed card(s):")
-        for message in skipped[:5]:
+        print(f"\nSkipped {len(stats.skipped)} malformed printing(s):")
+        for message in stats.skipped[:5]:
             print(f"  - {message}")
-        if len(skipped) > 5:
-            print(f"  ... and {len(skipped) - 5} more")
+        if len(stats.skipped) > 5:
+            print(f"  ... and {len(stats.skipped) - 5} more")
 
     return 0
 
