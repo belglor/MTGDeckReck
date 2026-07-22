@@ -39,11 +39,13 @@ TDD: write the test before the code it verifies. Don't chase coverage percentage
 
 ## Documentation
 
-Write for someone who hasn't read the rest of the repo — README, docstrings, issues, and PR descriptions alike.
+Applies to everything written here — `README.md`, docstrings, code comments, ADRs, issue bodies, PR descriptions, commit messages. Write for someone who hasn't read the rest of the repo.
 
 - Favor understandability over precision. If a plainer phrasing is nearly as accurate, use it and let the ADR carry the exact version.
 - Be concise and focused: answer the question at hand, skip context the reader doesn't need in order to act, and keep examples minimal.
 - Say a thing once. A decision lives in its ADR; code and `README.md` state the rule and link to it rather than retelling the reasoning.
+
+The issue template and the PR sections named above are shapes to fill, not quotas to meet. A section with nothing to report stays short or says so.
 
 ## Guardrails
 
