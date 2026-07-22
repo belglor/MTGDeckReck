@@ -178,6 +178,41 @@ def test_blank_oracle_id_raises(cards: dict[str, dict[str, Any]]) -> None:
         normalize_card(broken)
 
 
+# --- structural completeness (ADR 0017) ------------------------------------
+# `layout` and `set_type` are what decide whether an object is a card at all,
+# so a printing missing either cannot be classified and is refused here rather
+# than papered over. The rejected alternative defaulted a missing layout to
+# "unknown", which invented a value that then passed every check downstream.
+
+
+def test_missing_layout_raises(cards: dict[str, dict[str, Any]]) -> None:
+    broken = dict(cards["Sol Ring"])
+    del broken["layout"]
+    with pytest.raises(MalformedCardError, match="layout"):
+        normalize_card(broken)
+
+
+def test_missing_set_type_raises(cards: dict[str, dict[str, Any]]) -> None:
+    broken = dict(cards["Sol Ring"])
+    del broken["set_type"]
+    with pytest.raises(MalformedCardError, match="set_type"):
+        normalize_card(broken)
+
+
+def test_blank_layout_raises(cards: dict[str, dict[str, Any]]) -> None:
+    broken = dict(cards["Sol Ring"], layout="")
+    with pytest.raises(MalformedCardError, match="layout"):
+        normalize_card(broken)
+
+
+def test_the_error_names_the_card_it_rejected(cards: dict[str, dict[str, Any]]) -> None:
+    # The CLI prints these, so they have to identify the offending printing.
+    broken = dict(cards["Sol Ring"])
+    del broken["set_type"]
+    with pytest.raises(MalformedCardError, match="Sol Ring"):
+        normalize_card(broken)
+
+
 # --- frame assembly --------------------------------------------------------
 
 

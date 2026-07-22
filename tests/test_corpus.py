@@ -63,8 +63,12 @@ def test_scalar_and_frame_predicates_agree() -> None:
     assert from_scalar == from_frame
 
 
-def test_scalar_predicate_treats_absent_values_as_real() -> None:
-    assert is_real(None, None)
+def test_scalar_predicate_rejects_absent_values() -> None:
+    # ADR 0017: these two fields are the whole basis for calling something a
+    # card, so without them there is nothing to judge on.
+    assert not is_real(None, None)
+    assert not is_real("normal", None)
+    assert not is_real(None, "core")
 
 
 def test_scalar_predicate_rejects_memorabilia() -> None:
@@ -148,13 +152,15 @@ def test_real_cards_matches_the_predicate(cards: dict[str, dict[str, Any]]) -> N
     assert real_cards(frame).equals(frame.filter(is_real_card()))
 
 
-def test_card_with_null_set_type_is_real(cards: dict[str, dict[str, Any]]) -> None:
-    # A card is dropped only when a value actively matches an exclusion list,
-    # never because a field is absent — a null set_type must not filter a card
-    # out via null propagation.
-    raw = dict(cards["Sol Ring"])
-    raw.pop("set_type", None)
-    frame = build_frame([normalize_card(raw)])
+def test_a_row_with_a_null_structural_field_is_not_real() -> None:
+    # ADR 0017 reversed ADR 0013 here. Ingestion refuses to project such a
+    # printing at all, so this is unreachable from `just ingest` — it guards
+    # frames assembled some other way, where the row must be excluded on
+    # purpose rather than by polars' null propagation.
+    frame = pl.DataFrame(
+        {"layout": ["normal", None, "normal"], "set_type": ["core", "core", None]},
+        schema={"layout": pl.String, "set_type": pl.String},
+    )
     assert real_cards(frame).height == 1
 
 
