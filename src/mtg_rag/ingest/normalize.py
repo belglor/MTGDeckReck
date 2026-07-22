@@ -53,7 +53,7 @@ class CardRecord:
     rarity: str | None
     set_code: str | None
     set_name: str | None
-    set_type: str | None
+    set_type: str
     released_at: str | None
     games: list[str]
     reserved: bool
@@ -183,22 +183,39 @@ def _prices(raw: Mapping[str, Any]) -> Mapping[str, Any]:
 
 
 def normalize_card(raw: Mapping[str, Any]) -> CardRecord:
-    """Project one Scryfall card object into a `CardRecord`.
+    """Project one Scryfall printing into a `CardRecord`.
 
-    Raises `MalformedCardError` when `oracle_id` is missing — that is the join
-    key for every vector ([ADR 0010]), so a record without one is not something
-    to silently drop or paper over.
+    Raises `MalformedCardError` when a field the rest of the pipeline cannot
+    proceed without is missing ([ADR 0017]): `oracle_id`, which is the join key
+    for every vector ([ADR 0010]); and `layout` and `set_type`, which are what
+    decides whether the object is a card at all ([ADR 0013]).
+
+    Refusing is the point. A printing whose own record is too incomplete to
+    classify has no business being recommended to anyone, and the alternative
+    this replaced — defaulting a missing layout to `"unknown"` — invented a
+    value that then passed every check downstream, which is worse than either
+    keeping or dropping honestly. Measured across all 113,494 English printings,
+    none is missing any of the three, so this drops nothing today; it is here so
+    that the day one *is* missing, it is reported rather than fabricated.
     """
+    name = _str_or_none(raw, "name")
+    label = name or "<unnamed>"
+
     oracle_id = _str_or_none(raw, "oracle_id")
     if oracle_id is None:
-        name = _str_or_none(raw, "name") or "<unnamed>"
-        raise MalformedCardError(f"card {name!r} has no oracle_id")
+        raise MalformedCardError(f"card {label!r} has no oracle_id")
+    layout = _lower_or_none(raw, "layout")
+    if layout is None:
+        raise MalformedCardError(f"card {label!r} has no layout")
+    set_type = _lower_or_none(raw, "set_type")
+    if set_type is None:
+        raise MalformedCardError(f"card {label!r} has no set_type")
 
     prices = _prices(raw)
 
     return CardRecord(
         oracle_id=oracle_id,
-        name=_str_or_none(raw, "name") or "",
+        name=name or "",
         oracle_text=_joined(raw, "oracle_text"),
         flavor_text=_joined(raw, "flavor_text"),
         type_line=_joined(raw, "type_line", COST_SEPARATOR),
@@ -210,11 +227,11 @@ def normalize_card(raw: Mapping[str, Any]) -> CardRecord:
         power=_from_faces(raw, "power"),
         toughness=_from_faces(raw, "toughness"),
         loyalty=_from_faces(raw, "loyalty"),
-        layout=_lower_or_none(raw, "layout") or "unknown",
+        layout=layout,
         rarity=_lower_or_none(raw, "rarity"),
         set_code=_lower_or_none(raw, "set"),
         set_name=_str_or_none(raw, "set_name"),
-        set_type=_lower_or_none(raw, "set_type"),
+        set_type=set_type,
         released_at=_str_or_none(raw, "released_at"),
         games=_lower_str_list(raw, "games"),
         reserved=raw.get("reserved") is True,

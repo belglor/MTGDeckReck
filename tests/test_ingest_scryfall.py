@@ -1,14 +1,46 @@
 """Tests for Scryfall bulk-index lookup and corpus idempotency.
 
-The card projection itself is covered in `test_ingest_normalize.py`. Nothing
-here touches the network.
+The card projection itself is covered in `test_ingest_normalize.py`, and the
+collapse from printings to cards in `test_ingest_merge.py`. Nothing here
+touches the network.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
-from mtg_rag.ingest.scryfall import BulkEntry, Snapshot, should_skip
+from mtg_rag.ingest.scryfall import BulkEntry, Snapshot, is_english, should_skip
+
+# --- language --------------------------------------------------------------
+# `default_cards` carries a card in a foreign language when it exists in no
+# English printing at all — 1,207 Spanish objects, 661 Japanese, 430 French.
+# Left in, one of those could win the representative-printing contest and
+# supply a card's flavor text, quietly seeding the flavor channel with a
+# language the embedding model was never asked about.
+
+
+def _raw(**overrides: Any) -> dict[str, Any]:
+    return {"oracle_id": "abc", "name": "Sol Ring", "lang": "en"} | overrides
+
+
+def test_english_printings_are_kept() -> None:
+    assert is_english(_raw())
+
+
+def test_non_english_printings_are_skipped() -> None:
+    assert not is_english(_raw(lang="es"))
+    assert not is_english(_raw(lang="ja"))
+
+
+def test_a_printing_without_a_language_is_kept() -> None:
+    # Scryfall always sets `lang`, so this is defensive — and it defaults to
+    # keeping the card, because silently dropping a real card is the worse of
+    # the two ways to be wrong.
+    raw = _raw()
+    del raw["lang"]
+    assert is_english(raw)
+
 
 # --- idempotency -----------------------------------------------------------
 
