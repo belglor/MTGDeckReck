@@ -19,11 +19,20 @@ makes the call to merge.
 
 ## Card data
 
-`just ingest` downloads Scryfall's `oracle_cards` bulk snapshot and normalizes it
+`just ingest` downloads Scryfall's `default_cards` bulk snapshot and normalizes it
 to `data/cards.parquet` (~38k cards, one row per card, ~4 MB). It is a manual
 step — there is no scheduled refresh — and it is idempotent: a re-run checks the
 upstream snapshot timestamp against `data/cards.meta.json` and does nothing if
 the corpus is already current. Use `just ingest --force` to rebuild anyway.
+
+The snapshot holds one object per **printing** — 116k of them, against 38k cards
+— because several facts a card is filtered on differ between printings and cannot
+be read off just one. Ingestion keeps the English printings and collapses them:
+the most recent *real* printing represents the card and supplies its set, rarity,
+release date and prices, so those always describe one physical object. Flavor text
+is the exception, taken from the most recent printing that actually has any —
+newest-first alone would strip flavor text from 1,800 cards whose latest reprint
+carries none. See [ADR 0016](docs/adr/0016-ingest-every-printing.md).
 
 `data/` is gitignored. Deleting it and re-running restores everything.
 
