@@ -15,10 +15,7 @@ opens JupyterLab. All are manual — there is no scheduled refresh. `data/` is
 gitignored and fully reproducible.
 
 `just setup` installs everything, the embedding model included — retrieval
-encodes queries with it, so it is a core dependency. Even so, nothing in
-`mtg_rag.embed` may import `sentence_transformers` or `torch` at module scope: a
-torch import costs seconds, and modules that only read the parquet must not pay
-it. See `tests/test_embed_imports.py`.
+encodes queries with it, so it is a core dependency and imported normally.
 
 ## Git practices
 

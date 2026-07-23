@@ -4,23 +4,17 @@
 implementation ([ADR 0012]). Everything else composes text or moves vectors
 around, so keeping the model behind a protocol is what lets the pipeline be
 tested with a deterministic fake instead of a 1.2 GB download.
-
-**Importing this module must not import torch.** `sentence_transformers` and
-torch are heavy, and a torch import costs seconds; nothing that only reads the
-parquet — `python -m mtg_rag.ingest`, most of the test suite — should pay for it.
-So the model is loaded when a `QwenEncoder` is constructed, not at module scope.
-The dependency is always installed now ([ADR 0012]); the deferral is about
-startup cost, not availability. `tests/test_embed_imports.py` guards it.
 """
 
 from __future__ import annotations
 
-import importlib
 from collections.abc import Sequence
 from typing import Any, Protocol, cast
 
 import numpy as np
+import torch
 from numpy.typing import NDArray
+from sentence_transformers import SentenceTransformer
 
 from mtg_rag.embed.config import (
     ATTENTION_IMPLEMENTATION,
@@ -55,32 +49,12 @@ class Encoder(Protocol):
     ) -> NDArray[np.float32]: ...
 
 
-def _load_sentence_transformer() -> Any:
-    """Import `SentenceTransformer` on demand.
-
-    Imported by name rather than with a `from ... import` so the import stays
-    deferred (see the module docstring): a static top-level import would run at
-    module scope, which is exactly what must not happen. Going through
-    `importlib` also keeps the untyped boundary a single, explicitly-typed `Any`
-    rather than spreading `Unknown` through everything downstream of the handle.
-    """
-    try:
-        module = importlib.import_module("sentence_transformers")
-    except ModuleNotFoundError as exc:  # pragma: no cover - depends on the install
-        raise ModuleNotFoundError(
-            "sentence-transformers is missing — it is a core dependency, so the "
-            "install is incomplete. Run `just setup` (or `uv sync`)."
-        ) from exc
-    loaded: Any = module.SentenceTransformer
-    return loaded
-
-
 def detect_capability(torch: Any) -> str:
     """Which compute tier `torch` reports for this machine.
 
-    Takes the module rather than importing it, so the branch that decides the
-    dtype is testable on a machine with no torch at all — which is every machine
-    that has not opted into the `embed` extra, including CI.
+    Takes the module as an argument rather than reading the import directly, so
+    every branch is testable on one machine: a test fakes Ampere, Turing, MPS
+    and CPU in turn without owning any of that hardware.
 
     Ordered by preference: natively bf16-capable CUDA, then any CUDA, then
     Apple's MPS, then CPU as the floor.
@@ -103,7 +77,6 @@ def detect_capability(torch: Any) -> str:
 
 def _resolve_torch_dtype() -> str:
     """The widest compute dtype this machine actually supports."""
-    torch: Any = importlib.import_module("torch")
     return TORCH_DTYPE_BY_CAPABILITY[detect_capability(torch)]
 
 
@@ -117,16 +90,17 @@ class QwenEncoder:
     """
 
     def __init__(self, *, device: str | None = None) -> None:
-        # Deferred so that importing this module never pulls torch; see the
-        # module docstring and `test_embed_imports.py`, which protects it.
-        sentence_transformer = _load_sentence_transformer()
-
+        # Annotated `Any` deliberately: `encode_document` and `encode_query` are
+        # only partially annotated upstream, and letting that leak would spread
+        # `Unknown` through every caller of this class. One explicit boundary
+        # here is better than suppressions at each use.
+        #
         # The dtype follows the hardware rather than assuming the machine this
         # was written on. Note there is no `padding_side="left"`: it appears in
         # the model card's raw-transformers example and gets cargo-culted, but
         # sentence-transformers' last-token pooling reads the attention mask and
         # is padding-side agnostic.
-        model: Any = sentence_transformer(
+        model: Any = SentenceTransformer(
             MODEL_ID,
             device=device,
             model_kwargs={
