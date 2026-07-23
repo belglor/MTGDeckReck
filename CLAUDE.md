@@ -10,9 +10,14 @@ What it is and how it works: `docs/spec.md`. Why it works that way: `docs/adr/`.
 
 `just ingest` builds the card corpus at `data/cards.parquet` from Scryfall's bulk
 snapshot; `just embed` builds the vector index at `data/vectors/` (one Chroma
-collection per channel) plus its `data/vectors.meta.json` sidecar; `just notebook`
-opens JupyterLab. All are manual — there is no scheduled refresh. `data/` is
-gitignored and fully reproducible.
+collection per channel) plus its `data/vectors.meta.json` sidecar; `just retrieve
+"a query"` searches that index and prints a fused candidate pool; `just notebook`
+opens JupyterLab. The build steps are manual — there is no scheduled refresh.
+`data/` is gitignored and fully reproducible.
+
+The justfile sets `positional-arguments` so recipe arguments arrive as `"$@"`
+rather than being re-split on whitespace — `just retrieve "graveyard recursion"`
+must be one query, not three.
 
 `just setup` installs everything, the embedding model included — retrieval
 encodes queries with it, so it is a core dependency and imported normally.
