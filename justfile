@@ -19,7 +19,7 @@ ingest *args:
     uv run python -m mtg_rag.ingest {{args}}
 
 # Embed the corpus into data/vectors/ (one Chroma collection per channel).
-# Needs the optional model half: uv sync --extra embed
+# The first run downloads ~1.2 GB of model weights.
 embed *args:
     uv run python -m mtg_rag.embed {{args}}
 

@@ -1,23 +1,32 @@
-"""Tests for the encoder's hardware detection.
+"""Tests for the encoder's hardware detection and its protocol boundary.
 
 `QwenEncoder` itself stays deliberately untested — it is a thin configuration
-adapter. The branch worth testing is which dtype it asks for, because that
-decision is hardware-dependent and every wrong answer fails quietly rather than
-loudly: float16 on CPU is slow and unevenly supported, and Turing cannot do
+adapter, so a test would mean either a 1.2 GB download or mocking the library
+into a tautology. The branch worth testing is which dtype it asks for, because
+that decision is hardware-dependent and every wrong answer fails quietly rather
+than loudly: float16 on CPU is slow and unevenly supported, and Turing cannot do
 bfloat16 at all.
 
-`detect_capability` takes the torch module as an argument rather than importing
-it, so this runs on a machine with no torch — which is every machine that has
-not opted into the `embed` extra, CI included.
+`detect_capability` takes the torch module as an argument rather than reading
+the import directly, which is what lets one machine exercise every branch —
+Ampere, Turing, MPS and CPU are all faked here.
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from types import SimpleNamespace
 from typing import Any
 
-from mtg_rag.embed.config import TORCH_DTYPE_BY_CAPABILITY
-from mtg_rag.embed.encoder import detect_capability
+import numpy as np
+from numpy.typing import NDArray
+
+from mtg_rag.embed.config import (
+    DOCUMENT_BATCH_SIZE,
+    QUERY_BATCH_SIZE,
+    TORCH_DTYPE_BY_CAPABILITY,
+)
+from mtg_rag.embed.encoder import Encoder, detect_capability
 
 
 def _torch(*, cuda: bool, compute: tuple[int, int] = (7, 5), mps: bool = False) -> Any:
@@ -67,3 +76,41 @@ def test_a_torch_build_without_the_mps_backend_is_not_an_error() -> None:
     )
 
     assert detect_capability(torch) == "cpu"
+
+
+# --- the protocol boundary --------------------------------------------------
+
+
+class FakeEncoder:
+    """A deterministic stand-in — the reason the pipeline depends on a protocol.
+
+    Vector length is the only signal, which is enough to make retrieval
+    assertions predictable without downloading 1.2 GB of weights.
+    """
+
+    def __init__(self) -> None:
+        self.dim = 3
+
+    def encode_documents(
+        self, texts: Sequence[str], *, batch_size: int = DOCUMENT_BATCH_SIZE
+    ) -> NDArray[np.float32]:
+        return np.array([[float(len(text)), 0.0, 0.0] for text in texts], dtype=np.float32)
+
+    def encode_queries(
+        self, texts: Sequence[str], *, batch_size: int = QUERY_BATCH_SIZE
+    ) -> NDArray[np.float32]:
+        return np.array([[0.0, float(len(text)), 0.0] for text in texts], dtype=np.float32)
+
+
+def test_a_deterministic_fake_satisfies_the_encoder_protocol() -> None:
+    # The pipeline depends on `Encoder`, never on `QwenEncoder` — that is what
+    # lets it be exercised without a model. This assignment is the assertion:
+    # if the protocol ever grew something only the real model could provide, it
+    # would stop typechecking here rather than at the point someone needed it.
+    encoder: Encoder = FakeEncoder()
+
+    documents = encoder.encode_documents(["ab", "cde"])
+
+    assert encoder.dim == 3
+    assert documents.shape == (2, 3)
+    assert documents.dtype == np.float32
