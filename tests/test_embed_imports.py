@@ -1,13 +1,13 @@
-"""Guards the boundary that keeps torch out of the default install.
+"""Guards the boundary that keeps torch out of module-import time.
 
-`sentence_transformers` and `torch` are ~2.5 GB, needed only by the machine that
-runs `just embed`, and live behind the `embed` extra. Nothing in `mtg_rag.embed`
-may import them at module scope, or every CI run and every install that only
-queries an existing index would have to carry them.
+`sentence_transformers` and `torch` are always installed now, but a torch import
+still costs seconds. Nothing in `mtg_rag.embed` may import them at module scope,
+or `python -m mtg_rag.ingest` and most of the test suite — neither of which
+touches a model — would pay that cost on every import.
 
 This is the regression this file exists for: hoisting the import out of
 `QwenEncoder.__init__` up to module scope is a natural-looking tidy-up that
-would silently add a hard torch dependency to the whole project.
+would make the whole package slow to import.
 """
 
 from __future__ import annotations

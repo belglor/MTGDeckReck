@@ -14,10 +14,11 @@ collection per channel) plus its `data/vectors.meta.json` sidecar; `just noteboo
 opens JupyterLab. All are manual — there is no scheduled refresh. `data/` is
 gitignored and fully reproducible.
 
-`just embed` needs the optional model half (`uv sync --extra embed`), which is
-kept out of the default install because it pulls torch. Nothing in `mtg_rag.embed`
-may import `sentence_transformers` or `torch` at module scope — see
-`tests/test_embed_imports.py`.
+`just setup` installs everything, the embedding model included — retrieval
+encodes queries with it, so it is a core dependency. Even so, nothing in
+`mtg_rag.embed` may import `sentence_transformers` or `torch` at module scope: a
+torch import costs seconds, and modules that only read the parquet must not pay
+it. See `tests/test_embed_imports.py`.
 
 ## Git practices
 

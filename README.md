@@ -85,13 +85,9 @@ collection per channel, keyed by `oracle_id`. The three channels are oracle text
 such as tokens and emblems are excluded, leaving roughly 34k cards and 88k
 vectors. A card with no text in a channel simply has no entry there.
 
-The model is an optional dependency, because it pulls torch and only the machine
-building the index needs it:
-
-```sh
-uv sync --extra embed   # ~2.5 GB; not installed by `just setup`
-just embed              # first run also downloads ~1.2 GB of model weights
-```
+`just setup` installs everything, the model included — retrieval encodes each
+query with the same model, so it is a core dependency. The first `just embed`
+also downloads ~1.2 GB of model weights.
 
 `just embed --channel flavor` rebuilds one channel while iterating; a partial run
 leaves the sidecar alone, since it cannot establish that the whole index is

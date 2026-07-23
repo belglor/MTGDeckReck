@@ -5,11 +5,12 @@ implementation ([ADR 0012]). Everything else composes text or moves vectors
 around, so keeping the model behind a protocol is what lets the pipeline be
 tested with a deterministic fake instead of a 1.2 GB download.
 
-**Importing this module must not import torch.** `sentence_transformers` is a
-~2.5 GB dependency needed only by the machine running `just embed`, so it lives
-behind the `embed` extra and is loaded when a `QwenEncoder` is constructed
-rather than at module scope. That keeps `python -m mtg_rag.embed` importable —
-and the test suite runnable — on an install that has no model at all.
+**Importing this module must not import torch.** `sentence_transformers` and
+torch are heavy, and a torch import costs seconds; nothing that only reads the
+parquet — `python -m mtg_rag.ingest`, most of the test suite — should pay for it.
+So the model is loaded when a `QwenEncoder` is constructed, not at module scope.
+The dependency is always installed now ([ADR 0012]); the deferral is about
+startup cost, not availability. `tests/test_embed_imports.py` guards it.
 """
 
 from __future__ import annotations
@@ -57,19 +58,18 @@ class Encoder(Protocol):
 def _load_sentence_transformer() -> Any:
     """Import `SentenceTransformer` on demand.
 
-    Imported by name rather than with a `from ... import`, because the package
-    is deliberately absent from the default install: a static import would be
-    unresolvable to the typechecker on exactly the installs this project
-    expects, and suppressing that would spread `Unknown` through everything
-    downstream of the model handle. Going through `importlib` keeps the boundary
-    a single, explicitly-typed `Any` and lets a missing extra explain itself.
+    Imported by name rather than with a `from ... import` so the import stays
+    deferred (see the module docstring): a static top-level import would run at
+    module scope, which is exactly what must not happen. Going through
+    `importlib` also keeps the untyped boundary a single, explicitly-typed `Any`
+    rather than spreading `Unknown` through everything downstream of the handle.
     """
     try:
         module = importlib.import_module("sentence_transformers")
     except ModuleNotFoundError as exc:  # pragma: no cover - depends on the install
         raise ModuleNotFoundError(
-            "The embedding model is an optional dependency, and it is not installed. "
-            "Run `uv sync --extra embed` (this pulls torch, roughly 2.5 GB)."
+            "sentence-transformers is missing — it is a core dependency, so the "
+            "install is incomplete. Run `just setup` (or `uv sync`)."
         ) from exc
     loaded: Any = module.SentenceTransformer
     return loaded

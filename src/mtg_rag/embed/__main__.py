@@ -4,7 +4,7 @@ just embed                    # build data/vectors/ if it is not already current
 just embed --force            # rebuild regardless
 just embed --channel flavor   # rebuild one channel, for iterating locally
 
-Needs the optional model half: `uv sync --extra embed`.
+The first run downloads ~1.2 GB of model weights.
 """
 
 from __future__ import annotations

@@ -7,24 +7,16 @@ requires-python = ">=3.12"
 dependencies = [
     "httpx>=0.28",
     "polars>=1.0",
-    # The vector store. A request-time dependency: retrieval reads it, so it
-    # belongs in the default install. The embedding model does not — that is an
-    # opt-in extra, so nothing here drags in torch.
+    # The vector store — retrieval reads it, so it belongs in the default install.
     "chromadb>=1.5.9",
     # Vectors cross the store boundary as numpy arrays, and polars' public
     # signatures reference numpy types (which resolve to Unknown under pyright
     # strict when numpy is absent).
     "numpy>=2.0",
-]
-
-[project.optional-dependencies]
-# Only the machine that runs `just embed` needs these — roughly 2.5 GB of model
-# harness. Kept out of the default install so `just setup`, CI, and anything
-# that only queries an existing index never pay for torch. Install with
-# `uv sync --extra embed`.
-embed = [
-    # 5.0 is the floor for encode_query()/encode_document(), which carry the
-    # model's asymmetric prompts ([ADR 0012]).
+    # The embedding model. A request-time dependency now: retrieval encodes each
+    # query with the same model that built the index ([ADR 0012]), so it is no
+    # longer optional. The uv index routing below keeps CI off the CUDA wheel.
+    # 5.0 is the floor for encode_query()/encode_document(), the asymmetric prompts.
     "sentence-transformers>=5.0",
     "torch",
 ]

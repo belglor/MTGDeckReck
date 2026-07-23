@@ -1837,10 +1837,6 @@ dependencies = [
     { name = "httpx" },
     { name = "numpy" },
     { name = "polars" },
-]
-
-[package.optional-dependencies]
-embed = [
     { name = "sentence-transformers" },
     { name = "torch", version = "2.11.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "sys_platform == 'win32'" },
     { name = "torch", version = "2.13.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
@@ -1864,12 +1860,11 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28" },
     { name = "numpy", specifier = ">=2.0" },
     { name = "polars", specifier = ">=1.0" },
-    { name = "sentence-transformers", marker = "extra == 'embed'", specifier = ">=5.0" },
-    { name = "torch", marker = "sys_platform == 'linux' and extra == 'embed'", index = "https://download.pytorch.org/whl/cpu" },
-    { name = "torch", marker = "sys_platform != 'linux' and sys_platform != 'win32' and extra == 'embed'" },
-    { name = "torch", marker = "sys_platform == 'win32' and extra == 'embed'", index = "https://download.pytorch.org/whl/cu128" },
+    { name = "sentence-transformers", specifier = ">=5.0" },
+    { name = "torch", marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
+    { name = "torch", marker = "sys_platform == 'linux'", index = "https://download.pytorch.org/whl/cpu" },
+    { name = "torch", marker = "sys_platform == 'win32'", index = "https://download.pytorch.org/whl/cu128" },
 ]
-provides-extras = ["embed"]
 
 [package.metadata.requires-dev]
 dev = [
