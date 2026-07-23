@@ -62,6 +62,14 @@ BULK_TYPE = "default_cards"
 #: and those would otherwise reach the embedding channels.
 CORPUS_LANGUAGE = "en"
 
+#: Where a card can actually be played, and the vocabulary the platform filter
+#: offers. Scryfall also reports `astral` (10 cards, from the 1997 Shandalar PC
+#: game) and `sega` (8 Dreamcast promos); both are deliberately absent, being
+#: curiosities rather than places anyone plays. A card printed only there ends up
+#: with no platforms and is invisible to the filter, which is intended
+#: ([ADR 0018]).
+PLATFORMS: tuple[str, ...] = ("paper", "mtgo", "arena")
+
 #: Separator for text joined across a card's faces. Newlines keep the halves
 #: visually distinct in oracle and flavor text, matching how Scryfall renders
 #: split cards.

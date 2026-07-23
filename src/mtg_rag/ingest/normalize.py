@@ -25,7 +25,7 @@ from typing import Any, cast
 import polars as pl
 
 from mtg_rag.corpus_config import ID_COLUMN
-from mtg_rag.ingest.config import COST_SEPARATOR, FACE_SEPARATOR
+from mtg_rag.ingest.config import COST_SEPARATOR, FACE_SEPARATOR, PLATFORMS
 
 
 class MalformedCardError(ValueError):
@@ -55,7 +55,10 @@ class CardRecord:
     set_name: str | None
     set_type: str
     released_at: str | None
-    games: list[str]
+    #: Where this record can be played. On a printing that is the printing's own
+    #: media; on a merged card it is the union across every printing, which is
+    #: the only level at which the question has a correct answer ([ADR 0018]).
+    platforms: list[str]
     reserved: bool
     edhrec_rank: int | None
     price_usd: float | None
@@ -233,7 +236,7 @@ def normalize_card(raw: Mapping[str, Any]) -> CardRecord:
         set_name=_str_or_none(raw, "set_name"),
         set_type=set_type,
         released_at=_str_or_none(raw, "released_at"),
-        games=_lower_str_list(raw, "games"),
+        platforms=[game for game in _lower_str_list(raw, "games") if game in PLATFORMS],
         reserved=raw.get("reserved") is True,
         edhrec_rank=_int_or_none(raw.get("edhrec_rank")),
         price_usd=_float_or_none(prices.get("usd")),
@@ -280,7 +283,7 @@ def build_frame(records: Iterable[CardRecord]) -> pl.DataFrame:
             "set_name": record.set_name,
             "set_type": record.set_type,
             "released_at": record.released_at,
-            "games": record.games,
+            "platforms": record.platforms,
             "reserved": record.reserved,
             "edhrec_rank": record.edhrec_rank,
             "price_usd": record.price_usd,

@@ -9,16 +9,22 @@ Most fields make the choice moot. Measured across every printing, `oracle_text`,
 `type_line` and legality vary on **zero** cards — Scryfall applies current oracle
 text to every printing, and legality is a property of the card rather than the
 cardboard. What genuinely differs is `rarity` (3,316 cards), `flavor_text` (3,550
-carry more than one), and the set, release date, `games` and prices, which differ
-on nearly every reprint.
+carry more than one), and the set, release date, platforms and prices, which
+differ on nearly every reprint.
 
-Two rules cover that. A **representative printing** — the most recent — supplies
-every single-valued field, so a row describes one physical card rather than a
-composite of several. **Flavor text is the exception**: it comes from the most
-recent printing that actually has any. Taking it from the representative printing
-instead would strip flavor text from 1,804 cards, because a card's newest
-printing is so often a Commander-deck or promo reprint that carries none, and the
-flavor channel is the sparsest of the three to begin with.
+A **representative printing** — the most recent — supplies every single-valued
+field, so a row describes one physical card rather than a composite of several.
+Two fields are deliberately not taken from it:
+
+**Flavor text** comes from the most recent printing that actually has any. Taking
+it from the representative printing would strip flavor text from 1,804 cards,
+because a card's newest printing is so often a Commander-deck or promo reprint
+that carries none, and the flavor channel is the sparsest of the three to begin
+with.
+
+**Platforms** are the union across every printing, because that is the only level
+at which "can I play this card on Arena?" has a correct answer ([ADR 0018]). No
+single printing knows.
 
 The fold is incremental rather than a group-by: only the per-card aggregate is
 held, never the 116,138 records that produced it.
@@ -74,6 +80,7 @@ def merge_printings(records: Iterable[CardRecord]) -> list[CardRecord]:
     """
     representatives: dict[str, tuple[_Order, CardRecord]] = {}
     flavors: dict[str, tuple[_Order, str]] = {}
+    platforms: dict[str, set[str]] = {}
 
     for record in records:
         order = _order(record)
@@ -88,8 +95,16 @@ def merge_printings(records: Iterable[CardRecord]) -> list[CardRecord]:
             if donor is None or order > donor[0]:
                 flavors[record.oracle_id] = (order, flavor)
 
+        platforms.setdefault(record.oracle_id, set()).update(record.platforms)
+
     merged: list[CardRecord] = []
     for oracle_id, (_, record) in sorted(representatives.items()):
         donor = flavors.get(oracle_id)
-        merged.append(replace(record, flavor_text=donor[1] if donor is not None else None))
+        merged.append(
+            replace(
+                record,
+                flavor_text=donor[1] if donor is not None else None,
+                platforms=sorted(platforms[oracle_id]),
+            )
+        )
     return merged

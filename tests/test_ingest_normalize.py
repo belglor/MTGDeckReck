@@ -14,6 +14,7 @@ from typing import Any
 import polars as pl
 import pytest
 
+from mtg_rag.ingest.config import PLATFORMS
 from mtg_rag.ingest.normalize import MalformedCardError, build_frame, normalize_card
 
 FIXTURES = Path(__file__).parent / "fixtures" / "cards.jsonl"
@@ -122,7 +123,28 @@ def test_categorical_fields_are_lowercased(cards: dict[str, dict[str, Any]]) -> 
     assert record.rarity == "uncommon"
     assert record.set_code == "msc"
     assert record.set_type == "commander"
-    assert record.games == ["paper", "mtgo"]
+    assert record.platforms == ["paper", "mtgo"]
+
+
+# --- platforms -------------------------------------------------------------
+
+
+def test_unknown_media_are_dropped_from_platforms(cards: dict[str, dict[str, Any]]) -> None:
+    # `astral` and `sega` are real Scryfall values for two 1990s curiosities.
+    # They are not places anyone plays, so they never reach the corpus.
+    raw = dict(cards["Sol Ring"])
+    raw["games"] = ["paper", "astral", "sega"]
+
+    assert normalize_card(raw).platforms == ["paper"]
+
+
+def test_a_printing_with_only_unknown_media_has_no_platforms(
+    cards: dict[str, dict[str, Any]],
+) -> None:
+    raw = dict(cards["Sol Ring"])
+    raw["games"] = ["astral"]
+
+    assert normalize_card(raw).platforms == []
 
 
 def test_display_text_fields_keep_their_case(cards: dict[str, dict[str, Any]]) -> None:
@@ -255,3 +277,17 @@ def test_build_frame_on_empty_input_raises(cards: dict[str, dict[str, Any]]) -> 
 def test_released_at_is_a_date_column(cards: dict[str, dict[str, Any]]) -> None:
     frame = build_frame([normalize_card(c) for c in cards.values()])
     assert frame.schema["released_at"] == pl.Date
+
+
+def test_build_frame_writes_platforms_and_no_games(cards: dict[str, dict[str, Any]]) -> None:
+    frame = build_frame([normalize_card(c) for c in cards.values()])
+
+    assert "platforms" in frame.columns
+    assert "games" not in frame.columns
+
+
+def test_platforms_column_holds_no_unknown_media(cards: dict[str, dict[str, Any]]) -> None:
+    frame = build_frame([normalize_card(c) for c in cards.values()])
+    seen = {value for row in frame["platforms"].to_list() for value in row}
+
+    assert seen <= set(PLATFORMS)

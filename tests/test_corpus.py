@@ -134,8 +134,8 @@ def test_un_set_card_is_real(survivors: set[str]) -> None:
 
 
 def test_digital_only_card_is_real(survivors: set[str]) -> None:
-    # `Angel of Eternal Dawn` is an Alchemy card, games == ["arena"]. Digital-
-    # only-ness is what the `games` retrieval filter is for, not this predicate.
+    # `Angel of Eternal Dawn` is an Alchemy card, platforms == ["arena"].
+    # Digital-only-ness is what the platform filter is for, not this predicate.
     assert "Angel of Eternal Dawn" in survivors
 
 
@@ -177,3 +177,22 @@ def test_predicate_drops_no_commander_legal_card() -> None:
     before = frame.filter(pl.col("legal_commander") == "legal").height
     after = kept.filter(pl.col("legal_commander") == "legal").height
     assert before == after  # ADR 0013: not one commander-legal card is dropped
+
+
+def test_commander_legal_cards_are_available_in_paper() -> None:
+    """The invariant that protects the platform filter downstream ([ADR 0018]).
+
+    Reading `platforms` off one printing instead of unioning them leaves ~1,042
+    commander-legal paper cards looking MTGO-only, so any regression here is
+    dramatic. The bound is loose rather than zero because the invariant is not
+    strictly true: a card legal only in digital Commander can have no paper
+    printing. `"Name Sticker" Goblin` is the one such card in the corpus — a
+    genuinely MTGO-only port of the paper `_____ Goblin` — not an upstream error.
+    """
+    if not CORPUS.exists():
+        pytest.skip(f"no corpus at {CORPUS}; run `just ingest`")
+    legal = real_cards(pl.read_parquet(CORPUS)).filter(pl.col("legal_commander") == "legal")
+
+    without_paper = legal.filter(~pl.col("platforms").list.contains("paper"))
+
+    assert without_paper.height < 10, without_paper.select("name", "set_code").to_dicts()[:10]
