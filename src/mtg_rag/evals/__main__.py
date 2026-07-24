@@ -178,8 +178,12 @@ def main(argv: list[str] | None = None) -> int:
 
     report_path = data_dir / REPORT_NAME
     report_path.write_text(json.dumps(report.as_dict(), indent=2) + "\n", encoding="utf-8")
+    cases_run = len(report.results)
     runs = sum(len(result.runs) for result in report.results)
-    print(f"\n{len(report.results)} cases, {runs} runs in {elapsed:.1f}s -> {report_path}")
+    print(
+        f"\n{cases_run} case{'' if cases_run == 1 else 's'}, "
+        f"{runs} run{'' if runs == 1 else 's'} in {elapsed:.1f}s -> {report_path}"
+    )
     return 0
 
 
