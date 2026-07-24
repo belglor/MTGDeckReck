@@ -1,22 +1,24 @@
 """Tests for the eval runner: what a run produces, and what it refuses to do.
 
-Offline throughout — the fixture corpus, a deterministic stand-in encoder, and
-an ephemeral Chroma client, following `tests/test_retrieve_pool.py`.
+Offline throughout — the fixture corpus, a deterministic stand-in encoder, and a
+Chroma index in a directory of its own. See the `client` fixture for why it is
+built that way rather than the ephemeral client its neighbours use.
 """
 
 from __future__ import annotations
 
 import json
-from collections.abc import Iterator, Sequence
+import time
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-import chromadb
 import numpy as np
 import polars as pl
 import pytest
+from chromadb import Collection
 from chromadb.api import ClientAPI
-from chromadb.config import Settings
+from chromadb.errors import InternalError
 from numpy.typing import NDArray
 
 from mtg_rag.corpus_config import ID_COLUMN
@@ -27,8 +29,7 @@ from mtg_rag.evals.cases import EvalCase, Predicate
 from mtg_rag.evals.runner import Provenance, run_case, run_cases
 from mtg_rag.ingest.normalize import build_frame, normalize_card
 from mtg_rag.retrieve.filters import Constraints
-from mtg_rag.store.chroma import reset_collection, write_vectors
-from mtg_rag.store.config import ANONYMIZED_TELEMETRY
+from mtg_rag.store.chroma import open_client, reset_collection, search, write_vectors
 
 FIXTURES = Path(__file__).parent / "fixtures" / "cards.jsonl"
 
@@ -57,22 +58,56 @@ class LengthEncoder:
         return np.array([[1.0, 0.0] for _ in texts], dtype=np.float32)
 
 
-@pytest.fixture
-def client(corpus: pl.DataFrame) -> Iterator[ClientAPI]:
-    ephemeral = chromadb.EphemeralClient(
-        settings=Settings(anonymized_telemetry=ANONYMIZED_TELEMETRY, allow_reset=True)
-    )
-    ephemeral.reset()
+@pytest.fixture(scope="module")
+def client(corpus: pl.DataFrame, tmp_path_factory: pytest.TempPathFactory) -> ClientAPI:
+    """An index built from the fixture corpus, once, in a directory of its own.
+
+    Two properties here are load-bearing against an intermittent Chroma
+    `Error finding id`, and neither is obvious:
+
+    **Its own directory.** `EphemeralClient` returns one shared system per
+    settings hash, so every test module built with the same settings shares the
+    `oracle`/`flavor`/`type` collections — the names come from production code
+    and cannot be varied per test. Rebuilding those while another module holds
+    handles to them is what races. A `PersistentClient` on a private path shares
+    nothing.
+
+    **A warm-up query per collection.** A collection is not reliably *queryable*
+    the instant `write_vectors` returns: the first query against a freshly
+    written one can raise `Error finding id` while its HNSW segment is still
+    being built. `count()` is not a barrier for this — it reads collection
+    metadata, not the segment — so the warm-up issues a real query and retries
+    until it lands. Without it the first two tests in this module failed
+    intermittently, at roughly one run in ten, and the rest passed.
+    """
+    store = open_client(tmp_path_factory.mktemp("vectors"))
     for channel in CHANNELS:
         ids = channel_frame(corpus, channel)[ID_COLUMN].to_list()
-        collection = reset_collection(ephemeral, channel)
+        collection = reset_collection(store, channel)
         vectors = {
             card_id: np.array([1.0, index / max(len(ids), 1)], dtype=np.float32)
             for index, card_id in enumerate(ids)
         }
-        if vectors:
-            write_vectors(ephemeral, collection, vectors)
-    yield ephemeral
+        if not vectors:
+            continue
+        write_vectors(store, collection, vectors)
+        assert collection.count() == len(vectors)
+        _warm_up(collection, sorted(vectors))
+    return store
+
+
+def _warm_up(collection: Collection, ids: list[str], *, attempts: int = 20) -> None:
+    """Query until the collection answers, so no test is the first to try."""
+    probe = np.array([1.0, 0.0], dtype=np.float32)
+    for attempt in range(attempts):
+        try:
+            search(collection, probe, allow_ids=ids, n_results=1)
+        except InternalError:
+            if attempt == attempts - 1:
+                raise
+            time.sleep(0.05)
+        else:
+            return
 
 
 INDEX = VectorIndex(
