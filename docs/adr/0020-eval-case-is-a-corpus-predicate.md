@@ -51,12 +51,13 @@ Measured against `data/cards.parquet` (34,201 real cards, `corpus_updated_at` 20
 | Query | Constraints | precision@25 | base rate | lift |
 |---|---|---|---|---|
 | "cards that connive" | commander | 36.0% | 0.2% | **228×** |
-| "graveyard recursion" | commander | 72.0% | 14.0% | **5.2×** |
-| "spooky graveyard theme" | commander, `colors=W` | 40.0% | 10.1% | **4.0×** |
+| "graveyard recursion" | commander | 72.0% | 13.95% | **5.16×** |
+| " | commander, `colors=W` | 52.0% | 10.06% | **5.17×** |
+| " | commander, `colors=B` | 64.0% | 19.68% | **3.25×** |
 
-36% reads as a failure and is a 228× enrichment. Precision then fell 72% → 40% when white was forced, which reads as a regression and is not one: the constrained corpus is simply thinner in graveyard cards, and the pool came back full of white gravedigging. Lift barely moved. Precision is incomparable between cases, between constraint sets, and across corpus refreshes; lift is comparable on all three.
+36% reads as a failure and is a 228× enrichment. Then hold the query fixed and tighten the constraint: forcing white drops precision by twenty points and moves lift by 0.01, because the constrained corpus is simply thinner in graveyard cards. Precision is incomparable between cases, between constraint sets, and across corpus refreshes; lift is comparable on all three.
 
-**Constraint interaction is therefore lift retention**: the tighter run's lift over the looser one's, 0.77 above. That is the mechanical form of "the theme survived the constraint", and it asserts nothing about which cards should have survived it.
+**Constraint interaction is therefore lift retention**: the tighter run's lift over the looser one's, 1.00 for white above. That is the mechanical form of "the theme survived the constraint", and it asserts nothing about which cards should have survived it. Retention below 1.0 is not automatically a regression — black scores 0.63 because its base rate is already 19.68%, so there is less headroom to enrich, not worse retrieval.
 
 ### The eval reports; it never fails
 
