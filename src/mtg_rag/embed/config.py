@@ -29,6 +29,10 @@ type Channel = Literal["oracle", "flavor", "type"]
 #: controlled vocabulary that a name would dilute. Adding "name" to another
 #: channel changes retrieval behavior and wants the ADR revisited, not just this
 #: mapping edited.
+#:
+#: `flavor` is one column and therefore one vector per card, even though a card
+#: may have had many flavor texts across its printings — the corpus stores the
+#: most recent one that exists ([ADR 0016]) and this embeds that ([ADR 0019]).
 CHANNEL_SOURCES: Mapping[Channel, tuple[str, ...]] = {
     "oracle": ("name", "oracle_text"),
     "flavor": ("flavor_text",),
