@@ -20,7 +20,7 @@ rest run per request.
 |---|---|---|
 | **Ingest** | Downloads Scryfall's card data into a local table | yes |
 | **Embed** | Turns each card's text into vectors for semantic search | yes |
-| **Retrieve** | Filters to legal, in-color cards, then searches for candidates | no |
+| **Retrieve** | Filters to legal, in-color cards, then searches for candidates | yes |
 | **Plan** | Asks an LLM what to search for, given the deck request | no |
 | **Curate** | Asks an LLM to group the candidates by role and explain the picks | no |
 
@@ -33,6 +33,7 @@ individual decisions: [`docs/adr/`](docs/adr/).
 just setup     # install dependencies and pre-commit hooks
 just ingest    # build the card table (a few minutes)
 just embed     # build the search index (downloads a model; see below)
+just retrieve "spooky graveyard recursion" --colors B   # search it
 ```
 
 `just` is the command surface — run `just` or read the `justfile` for the full list.
@@ -97,6 +98,35 @@ The model id and vector dimension live in
 [`src/mtg_rag/embed/config.py`](src/mtg_rag/embed/config.py). Changing either
 invalidates the index and starts a new retrieval baseline rather than continuing
 the old one.
+
+## Retrieval
+
+`just retrieve` searches the index and prints a candidate pool. It exists so the
+retrieval path is usable before the planner that will eventually drive it:
+
+```sh
+just retrieve "spooky graveyard recursion" "self-mill enablers" \
+    --format commander --colors B --explain
+```
+
+Each quoted phrase is one query. Every query is run against all three channels,
+and the rankings are fused into one pool by Reciprocal Rank Fusion — combining
+positions, never raw similarity scores, which are not comparable between
+channels ([ADR 0008](docs/adr/0008-rrf-fusion-not-raw-scores.md)). `--explain`
+shows which query, channel and rank found each card.
+
+Before any search runs, the hard constraints you pick — format legality, color
+identity, platform — filter the corpus down to the cards you are allowed to see,
+and the search is restricted to those
+([ADR 0001](docs/adr/0001-legality-color-as-filters-not-prompts.md)). An illegal
+or off-color card cannot come back, rather than being filtered out afterwards.
+
+`--colors` omitted means no color constraint; `--colors ""` means colorless only.
+Other flags: `--platform`, `--channel` (repeatable, to see one channel alone),
+`-k` for pool size, `--data-dir`.
+
+An empty pool is a valid answer — a colorless deck asking for black removal is
+honestly unsatisfiable.
 
 ## Development
 
