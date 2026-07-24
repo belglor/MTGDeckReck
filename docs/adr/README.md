@@ -30,3 +30,4 @@ This directory records the significant architectural decisions for this project 
 - [0017](0017-structural-completeness-is-required.md) — A printing missing `layout` or `set_type` is refused at ingestion
 - [0018](0018-card-level-platform-availability.md) — Platform availability is the union across a card's printings
 - [0019](0019-flavor-channel-embeds-one-text.md) — The flavor channel embeds one text per card: the most recent printing that has any
+- [0020](0020-eval-case-is-a-corpus-predicate.md) — An eval case is a corpus predicate measured as lift, not a list of expected cards
