@@ -1,8 +1,8 @@
 """Tests for the eval runner: what a run produces, and what it refuses to do.
 
-Offline throughout — the fixture corpus, a deterministic stand-in encoder, and a
-Chroma index in a directory of its own. See the `client` fixture for why it is
-built that way rather than the ephemeral client its neighbours use.
+Offline throughout — the fixture corpus, a deterministic stand-in encoder, and an
+in-memory Chroma index. See the `client` fixture for why it is built the way
+it is — every detail there is load-bearing against a flake.
 """
 
 from __future__ import annotations
@@ -13,24 +13,26 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+import chromadb
 import numpy as np
 import polars as pl
 import pytest
-from chromadb import Collection
 from chromadb.api import ClientAPI
+from chromadb.config import Settings
 from chromadb.errors import InternalError
 from numpy.typing import NDArray
 
 from mtg_rag.corpus_config import ID_COLUMN
 from mtg_rag.embed.channels import channel_frame
-from mtg_rag.embed.config import CHANNELS, DOCUMENT_BATCH_SIZE, QUERY_BATCH_SIZE
+from mtg_rag.embed.config import CHANNELS, DOCUMENT_BATCH_SIZE, QUERY_BATCH_SIZE, Channel
 from mtg_rag.embed.index import VectorIndex
 from mtg_rag.evals.cases import EvalCase
 from mtg_rag.evals.predicates import Predicate
-from mtg_rag.evals.runner import run_case, run_cases
+from mtg_rag.evals.runner import CaseResult, Report, Run, run_case, run_cases
 from mtg_rag.ingest.normalize import build_frame, normalize_card
 from mtg_rag.retrieve.filters import Constraints
-from mtg_rag.store.chroma import open_client, reset_collection, search, write_vectors
+from mtg_rag.store.chroma import open_collection, reset_collection, search, write_vectors
+from mtg_rag.store.config import ANONYMIZED_TELEMETRY
 
 FIXTURES = Path(__file__).parent / "fixtures" / "cards.jsonl"
 
@@ -60,28 +62,29 @@ class LengthEncoder:
 
 
 @pytest.fixture(scope="module")
-def client(corpus: pl.DataFrame, tmp_path_factory: pytest.TempPathFactory) -> ClientAPI:
-    """An index built from the fixture corpus, once, in a directory of its own.
+def client(corpus: pl.DataFrame) -> ClientAPI:
+    """An index built from the fixture corpus, once, in memory.
 
-    Two properties here are load-bearing against an intermittent Chroma
-    `Error finding id`, and neither is obvious:
+    Three details here are load-bearing against an intermittent Chroma failure
+    that made this module fail roughly one run in ten, measured in isolation —
+    it was never cross-module, whatever the shared `EphemeralClient` system
+    might suggest.
 
-    **Its own directory.** `EphemeralClient` returns one shared system per
-    settings hash, so every test module built with the same settings shares the
-    `oracle`/`flavor`/`type` collections — the names come from production code
-    and cannot be varied per test. Rebuilding those while another module holds
-    handles to them is what races. A `PersistentClient` on a private path shares
-    nothing.
+    **In memory, not on disk.** A `PersistentClient` on a private path still
+    failed at ~2% with `Nothing found on disk`: the HNSW segment is not on disk
+    the instant `write_vectors` returns, and a reader opened before it lands
+    finds nothing. An in-memory store cannot miss a file it never writes.
 
-    **A warm-up query per collection.** A collection is not reliably *queryable*
-    the instant `write_vectors` returns: the first query against a freshly
-    written one can raise `Error finding id` while its HNSW segment is still
-    being built. `count()` is not a barrier for this — it reads collection
-    metadata, not the segment — so the warm-up issues a real query and retries
-    until it lands. Without it the first two tests in this module failed
-    intermittently, at roughly one run in ten, and the rest passed.
+    **Built once per module.** Rebuilding these collections per test only widens
+    the window in which that race can be lost. Nothing here mutates the store.
+
+    **`client.reset()` is deliberately not called.** `EphemeralClient` hands
+    back one shared system per settings hash, so a reset would wipe collections
+    belonging to whichever module runs next.
     """
-    store = open_client(tmp_path_factory.mktemp("vectors"))
+    store = chromadb.EphemeralClient(
+        settings=Settings(anonymized_telemetry=ANONYMIZED_TELEMETRY, allow_reset=True)
+    )
     for channel in CHANNELS:
         ids = channel_frame(corpus, channel)[ID_COLUMN].to_list()
         collection = reset_collection(store, channel)
@@ -93,16 +96,28 @@ def client(corpus: pl.DataFrame, tmp_path_factory: pytest.TempPathFactory) -> Cl
             continue
         write_vectors(store, collection, vectors)
         assert collection.count() == len(vectors)
-        _warm_up(collection, sorted(vectors))
+        _warm_up(store, channel, sorted(vectors))
     return store
 
 
-def _warm_up(collection: Collection, ids: list[str], *, attempts: int = 20) -> None:
-    """Query until the collection answers, so no test is the first to try."""
+def _warm_up(client: ClientAPI, channel: Channel, ids: list[str], *, attempts: int = 20) -> None:
+    """Query through the same handle retrieval uses, until it answers.
+
+    The handle matters. `search_channels` does not reuse the `Collection` that
+    wrote the vectors — it opens its own with `open_collection` — and it is that
+    fresh handle which intermittently finds nothing just after a write: on a
+    persistent store as `Nothing found on disk`, on an ephemeral one as
+    `Error finding id`. Warming the fixture's own handle proved nothing about
+    it, which is why an earlier version of this still failed at ~6%.
+
+    Only tests hit this shape. `just embed` writes the index and exits; `just
+    eval` opens it in a later process, so nothing in production queries a
+    collection it wrote moments ago through a second handle.
+    """
     probe = np.array([1.0, 0.0], dtype=np.float32)
     for attempt in range(attempts):
         try:
-            search(collection, probe, allow_ids=ids, n_results=1)
+            search(open_collection(client, channel), probe, allow_ids=ids, n_results=1)
         except InternalError:
             if attempt == attempts - 1:
                 raise
@@ -207,9 +222,10 @@ def test_an_unsatisfiable_constraint_reports_rather_than_raises(
     assert run.precision is None or run.precision == 0.0
 
 
-def test_the_report_carries_the_provenance_stamp(corpus: pl.DataFrame, client: ClientAPI) -> None:
+def test_run_cases_returns_one_result_per_case(corpus: pl.DataFrame, client: ClientAPI) -> None:
+    """The only thing `run_cases` does that `run_case` does not."""
     report = run_cases(
-        [_case((Constraints("commander"),))],
+        [_case((Constraints("commander"),)), _case((Constraints("commander"),), keyword="Fuse")],
         frame=corpus,
         client=client,
         encoder=LengthEncoder(),
@@ -217,7 +233,65 @@ def test_the_report_carries_the_provenance_stamp(corpus: pl.DataFrame, client: C
         k=10,
         channels=CHANNELS,
     )
-    stamp = report.as_dict()["provenance"]
+    assert len(report.results) == 2
+    assert report.index is INDEX and report.k == 10
+
+
+# --- the report as JSON ----------------------------------------------------
+# Built as a literal rather than run. Every value these assert was known before
+# any retrieval happened, so going through the store would only make them slower
+# and vaguer — and a literal can pin exact values, which a live run cannot.
+
+REPORT = Report(
+    index=INDEX,
+    k=10,
+    channels=CHANNELS,
+    results=(
+        CaseResult(
+            case=_case(
+                (
+                    Constraints("commander"),
+                    Constraints("commander", frozenset({"W"})),
+                    Constraints("commander", frozenset()),
+                )
+            ),
+            runs=(
+                Run(
+                    constraints=Constraints("commander"),
+                    pool_size=25,
+                    base_rate=0.13954,
+                    precision=0.72,
+                    lift=5.160105,
+                    retention=1.0,
+                ),
+                Run(
+                    constraints=Constraints("commander", frozenset({"W"})),
+                    pool_size=25,
+                    base_rate=0.100628,
+                    precision=0.52,
+                    lift=5.167543160690571,
+                    retention=1.0014090682074324,
+                ),
+                Run(
+                    constraints=Constraints("commander", frozenset()),
+                    pool_size=0,
+                    base_rate=0.004,
+                    precision=None,
+                    lift=None,
+                    retention=None,
+                ),
+            ),
+        ),
+    ),
+)
+
+
+def _runs() -> list[dict[str, Any]]:
+    return REPORT.as_dict()["cases"][0]["runs"]
+
+
+def test_the_report_carries_the_provenance_stamp() -> None:
+    stamp = REPORT.as_dict()["provenance"]
     assert stamp["model_id"] == "test/model"
     assert stamp["dim"] == 2
     assert stamp["corpus_updated_at"] == "2026-07-22T21:12:36.682+00:00"
@@ -225,33 +299,31 @@ def test_the_report_carries_the_provenance_stamp(corpus: pl.DataFrame, client: C
     assert stamp["channels"] == list(CHANNELS)
 
 
-def test_the_report_carries_no_aggregate_across_cases(
-    corpus: pl.DataFrame, client: ClientAPI
-) -> None:
+def test_the_report_carries_no_aggregate_across_cases() -> None:
     """A mechanic lift and a theme lift are not commensurable ([ADR 0020])."""
-    report = run_cases(
-        [_case((Constraints("commander"),))],
-        frame=corpus,
-        client=client,
-        encoder=LengthEncoder(),
-        index=INDEX,
-        k=10,
-        channels=CHANNELS,
-    )
-    assert set(report.as_dict()) == {"provenance", "cases"}
+    assert set(REPORT.as_dict()) == {"provenance", "cases"}
 
 
-def test_colorless_survives_the_json_round_trip(corpus: pl.DataFrame, client: ClientAPI) -> None:
+def test_colorless_survives_the_json_round_trip() -> None:
     """`None` is unconstrained and `""` is colorless — the JSON must not merge them."""
-    case = _case((Constraints("commander"), Constraints("commander", frozenset())))
-    report = run_cases(
-        [case],
-        frame=corpus,
-        client=client,
-        encoder=LengthEncoder(),
-        index=INDEX,
-        k=10,
-        channels=CHANNELS,
-    )
-    colors = [run["colors"] for run in report.as_dict()["cases"][0]["runs"]]
-    assert colors == [None, ""]
+    assert [run["colors"] for run in _runs()] == [None, "W", ""]
+
+
+def test_an_undefined_metric_serializes_as_null_never_zero() -> None:
+    """The contract the whole report rests on, checked where a reader meets it.
+
+    `metrics.py`'s tests pin this at the arithmetic level. This is the one that
+    checks it survives into the file people compare across runs — where a `0`
+    would read as a measurement that was taken and came back empty.
+    """
+    unsatisfiable = _runs()[2]
+    assert unsatisfiable["precision"] is None
+    assert unsatisfiable["lift"] is None
+    assert unsatisfiable["retention"] is None
+    assert unsatisfiable["base_rate"] == 0.004, "a real zero-ish number stays a number"
+
+
+def test_metrics_are_not_rounded_on_the_way_out() -> None:
+    """Rounding here would manufacture agreement between runs that differ."""
+    assert _runs()[1]["lift"] == 5.167543160690571
+    assert _runs()[1]["retention"] == 1.0014090682074324
