@@ -67,6 +67,23 @@ def legality_expr(format_name: str, frame: pl.DataFrame) -> pl.Expr:
     return pl.col(column).is_in(PLAYABLE_LEGALITIES).fill_null(False)
 
 
+def parse_color_identity(colors: str | None) -> frozenset[str] | None:
+    """A written colour identity — `"BG"`, `""`, or nothing — as a constraint.
+
+    Absent means unconstrained; an empty string means colorless-only. Those are
+    genuinely different requests, which is why `Constraints` keeps the
+    distinction in the type rather than in a sentinel, and why anything reading
+    a colour identity from text has to preserve it.
+
+    Lives here rather than in a caller because both the retrieval CLI and the
+    eval's golden set read one, and two copies of this would be two chances to
+    collapse `None` into `frozenset()`.
+    """
+    if colors is None:
+        return None
+    return frozenset(colors.strip().upper())
+
+
 def color_identity_expr(identity: frozenset[str]) -> pl.Expr:
     """Cards whose color identity fits within `identity`.
 

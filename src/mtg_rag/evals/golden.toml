@@ -1,0 +1,105 @@
+# The golden set: what the eval measures ([ADR 0020]).
+#
+# A case is (query, predicate, one or more constraint sets). The predicate is
+# the ground truth and is evaluated twice — over the constrained corpus for a
+# base rate, over the returned pool for precision — and lift is their ratio.
+# No case names a card. Adding one that does is the thing this design exists
+# to prevent.
+#
+# `rationale` is required: it says why this predicate is defensible ground
+# truth for this query, which is the one thing a later reader cannot work out
+# from the rest of the entry.
+
+# --- mechanic cases --------------------------------------------------------
+# Scryfall's `keywords` column is closed and authoritative, so membership is a
+# matter of fact and nobody has to curate a card list. The query is the
+# mechanic's own name, which is the token every card carrying it prints.
+#
+# These run in the hundreds of x and that is what a working floor looks like
+# ([ADR 0020]): they catch a large break and would not notice a subtle one.
+
+[[case]]
+id = "connive"
+query = "connive"
+rationale = "Membership is Scryfall's keywords column, not a judgement about which cards are connive cards."
+predicate = { keyword = "Connive" }
+constraints = [ { format = "commander" } ]
+
+[[case]]
+id = "exploit"
+query = "exploit"
+rationale = "Same structured ground truth; 'exploit' is also a common English word, so a collapse here would show the query stopped reaching the mechanic."
+predicate = { keyword = "Exploit" }
+constraints = [ { format = "commander" } ]
+
+[[case]]
+id = "dredge"
+query = "dredge"
+rationale = "Only 2 of 14 dredge cards print the reminder text, so this case rests entirely on the keyword token rather than on rules prose."
+predicate = { keyword = "Dredge" }
+constraints = [ { format = "commander" } ]
+
+[[case]]
+id = "undying"
+query = "undying"
+rationale = "Structured ground truth for a mechanic whose name is also ordinary English, like exploit."
+predicate = { keyword = "Undying" }
+constraints = [ { format = "commander" } ]
+
+[[case]]
+id = "persist"
+query = "persist"
+rationale = "Pairs with undying — two mechanics that do nearly the same thing, so a query that confuses them shows up as one lift falling while the other holds."
+predicate = { keyword = "Persist" }
+constraints = [ { format = "commander" } ]
+
+[[case]]
+id = "escape"
+query = "escape"
+rationale = "Structured ground truth; the plainest English word of the mechanic names, and so the most sensitive to the embedding drifting toward the ordinary meaning."
+predicate = { keyword = "Escape" }
+constraints = [ { format = "commander" } ]
+
+[[case]]
+id = "madness"
+query = "madness"
+rationale = "Structured ground truth. The mechanic a plain-language request reaches at 0x (issue #50), which is why the keyword-named form is worth watching."
+predicate = { keyword = "Madness" }
+constraints = [ { format = "commander" } ]
+
+[[case]]
+id = "landfall"
+query = "landfall"
+rationale = "The deliberate low number: its base rate is an order of magnitude above the other mechanics, so its lift is structurally lower without retrieval being worse. A set of uniformly huge numbers teaches nobody how to read one."
+predicate = { keyword = "Landfall" }
+constraints = [ { format = "commander" } ]
+
+# --- theme cases -----------------------------------------------------------
+# No keyword expresses a theme, so the predicate is an oracle-text match. It is
+# a *proxy* — `(?i)graveyard` also matches "exile target card from a graveyard",
+# which is not a graveyard-theme card — and is admissible only as a fixed ruler
+# compared to itself across runs, never as an absolute score ([ADR 0020]).
+#
+# These carry several constraint sets, which is what makes them the
+# constraint-interaction cases: what is read is retention between the runs.
+
+[[case]]
+id = "graveyard"
+query = "graveyard recursion"
+rationale = "No keyword expresses a graveyard theme; an oracle-text mention is the closest matter-of-fact proxy, fixed so it can detect movement."
+predicate = { oracle_text = "(?i)graveyard" }
+constraints = [
+    { format = "commander" },
+    { format = "commander", colors = "W" },
+    { format = "commander", colors = "B" },
+]
+
+[[case]]
+id = "tokens"
+query = "creating creature tokens to swarm the board"
+rationale = "A theme with no keyword behind it. 'create ... token' is the printed phrasing every token-maker uses, so the predicate matches the mechanic rather than the flavour."
+predicate = { oracle_text = "(?i)create .{0,40}token" }
+constraints = [
+    { format = "commander" },
+    { format = "commander", colors = "W" },
+]

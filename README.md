@@ -128,6 +128,37 @@ Other flags: `--platform`, `--channel` (repeatable, to see one channel alone),
 An empty pool is a valid answer — a colorless deck asking for black removal is
 honestly unsatisfiable.
 
+## Evals
+
+`just eval` runs the golden set and prints how much richer the retrieved pool is
+in a property than the corpus was. It needs a built corpus and index, so it runs
+locally rather than in CI.
+
+```sh
+just eval
+just eval --case graveyard
+```
+
+A case is a query, a **corpus predicate**, and one or more constraint sets — no
+case names an expected card
+([ADR 0020](docs/adr/0020-eval-case-is-a-corpus-predicate.md)). The predicate is
+the ground truth and gets applied twice: over the corpus the constraints allow,
+giving a base rate, and over the pool that came back, giving precision. Their
+ratio is **lift**, and it is what the table reports, because raw precision is not
+comparable between cases, between constraint sets, or across corpus refreshes.
+
+A case with several constraint sets also reports **retention** — its lift under
+the tighter constraint over its lift under the first. That is what "the theme
+survived the constraint" means without anyone deciding which cards a theme is
+made of. Retention below 1.0 is not automatically a regression: it also happens
+when the narrowed corpus is already dense in the property.
+
+The eval **never fails a run**. The numbers are a regression signal, not a gate
+([ADR 0011](docs/adr/0011-evaluation-scope-and-baseline-semantics.md)), and they
+are only comparable within one embedding configuration — which is why every
+report is stamped with the model, dimension and corpus it came from. The cases
+live in `src/mtg_rag/evals/golden.toml`; the JSON report lands in `data/`.
+
 ## Development
 
 `just check` runs lint, typecheck and tests — exactly what CI runs.
