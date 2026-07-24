@@ -1,4 +1,4 @@
-"""A predicate kind and its value, as a polars expression.
+"""What a predicate is, and how it becomes a polars expression.
 
 An eval case names its expected set by a property every card either has or does
 not ([ADR 0020]). This is where that name becomes something polars can evaluate.
@@ -11,11 +11,26 @@ cannot come to disagree about what the case meant.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import polars as pl
+
+from mtg_rag.evals.config import PredicateKind
 
 
 class UnknownPredicateKindError(ValueError):
     """A case named a predicate kind this module cannot build."""
+
+
+@dataclass(frozen=True, slots=True)
+class Predicate:
+    """The property a case expects the pool to be enriched for."""
+
+    kind: PredicateKind
+    value: str
+
+    def expr(self) -> pl.Expr:
+        return predicate_expr(self.kind, self.value)
 
 
 def predicate_expr(kind: str, value: str) -> pl.Expr:

@@ -32,7 +32,7 @@ from mtg_rag.evals.cases import (
     validate_against_corpus,
 )
 from mtg_rag.evals.config import DEFAULT_EVAL_K, REPORT_NAME
-from mtg_rag.evals.runner import Provenance, Report, run_cases
+from mtg_rag.evals.runner import Report, run_cases
 from mtg_rag.ingest.config import CORPUS_NAME
 from mtg_rag.retrieve.filters import Constraints
 from mtg_rag.store.chroma import open_client
@@ -85,11 +85,11 @@ def _colors_label(constraints: Constraints) -> str:
 
 
 def _print_report(report: Report) -> None:
-    stamp = report.provenance
-    print(f"Model:    {stamp.model_id} (dim {stamp.dim})")
-    print(f"Corpus:   {stamp.corpus_row_count:,} rows, updated {stamp.corpus_updated_at}")
-    print(f"Channels: {', '.join(stamp.channels)}")
-    print(f"k:        {stamp.k}\n")
+    index = report.index
+    print(f"Model:    {index.model_id} (dim {index.dim})")
+    print(f"Corpus:   {index.corpus_row_count:,} rows, updated {index.corpus_updated_at}")
+    print(f"Channels: {', '.join(report.channels)}")
+    print(f"k:        {report.k}\n")
 
     header = (
         f"{'case':<12} {'constraints':<22} {'pool':>5} "
@@ -161,7 +161,6 @@ def main(argv: list[str] | None = None) -> int:
     print("Loading the model...\n")
     encoder = QwenEncoder()
     client = open_client(vector_dir)
-    provenance = Provenance.from_index(index, k=args.pool_size, channels=CHANNELS)
 
     started = time.perf_counter()
     report = run_cases(
@@ -169,7 +168,8 @@ def main(argv: list[str] | None = None) -> int:
         frame=frame,
         client=client,
         encoder=encoder,
-        provenance=provenance,
+        index=index,
+        k=args.pool_size,
         channels=CHANNELS,
     )
     elapsed = time.perf_counter() - started

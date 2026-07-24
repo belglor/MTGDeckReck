@@ -25,8 +25,9 @@ from mtg_rag.corpus_config import ID_COLUMN
 from mtg_rag.embed.channels import channel_frame
 from mtg_rag.embed.config import CHANNELS, DOCUMENT_BATCH_SIZE, QUERY_BATCH_SIZE
 from mtg_rag.embed.index import VectorIndex
-from mtg_rag.evals.cases import EvalCase, Predicate
-from mtg_rag.evals.runner import Provenance, run_case, run_cases
+from mtg_rag.evals.cases import EvalCase
+from mtg_rag.evals.predicates import Predicate
+from mtg_rag.evals.runner import run_case, run_cases
 from mtg_rag.ingest.normalize import build_frame, normalize_card
 from mtg_rag.retrieve.filters import Constraints
 from mtg_rag.store.chroma import open_client, reset_collection, search, write_vectors
@@ -207,13 +208,13 @@ def test_an_unsatisfiable_constraint_reports_rather_than_raises(
 
 
 def test_the_report_carries_the_provenance_stamp(corpus: pl.DataFrame, client: ClientAPI) -> None:
-    provenance = Provenance.from_index(INDEX, k=10, channels=CHANNELS)
     report = run_cases(
         [_case((Constraints("commander"),))],
         frame=corpus,
         client=client,
         encoder=LengthEncoder(),
-        provenance=provenance,
+        index=INDEX,
+        k=10,
         channels=CHANNELS,
     )
     stamp = report.as_dict()["provenance"]
@@ -233,7 +234,8 @@ def test_the_report_carries_no_aggregate_across_cases(
         frame=corpus,
         client=client,
         encoder=LengthEncoder(),
-        provenance=Provenance.from_index(INDEX, k=10, channels=CHANNELS),
+        index=INDEX,
+        k=10,
         channels=CHANNELS,
     )
     assert set(report.as_dict()) == {"provenance", "cases"}
@@ -247,7 +249,8 @@ def test_colorless_survives_the_json_round_trip(corpus: pl.DataFrame, client: Cl
         frame=corpus,
         client=client,
         encoder=LengthEncoder(),
-        provenance=Provenance.from_index(INDEX, k=10, channels=CHANNELS),
+        index=INDEX,
+        k=10,
         channels=CHANNELS,
     )
     colors = [run["colors"] for run in report.as_dict()["cases"][0]["runs"]]

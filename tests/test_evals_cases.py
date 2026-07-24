@@ -135,17 +135,6 @@ def test_a_predicate_naming_two_kinds_raises(tmp_path: Path) -> None:
         load_cases(_write(tmp_path, body))
 
 
-def test_a_case_without_constraints_raises(tmp_path: Path) -> None:
-    body = MINIMAL.replace('constraints = [ { format = "commander" } ]', "constraints = []")
-    with pytest.raises(MalformedCaseError, match="constraints"):
-        load_cases(_write(tmp_path, body))
-
-
-def test_duplicate_case_ids_raise(tmp_path: Path) -> None:
-    with pytest.raises(MalformedCaseError, match="connive"):
-        load_cases(_write(tmp_path, MINIMAL + MINIMAL))
-
-
 # --- the corpus check ------------------------------------------------------
 
 

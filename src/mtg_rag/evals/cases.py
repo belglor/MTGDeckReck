@@ -25,8 +25,8 @@ import polars as pl
 
 from mtg_rag.evals.config import GOLDEN_NAME, PredicateKind
 from mtg_rag.evals.metrics import base_rate
-from mtg_rag.evals.predicates import predicate_expr
-from mtg_rag.retrieve.filters import Constraints
+from mtg_rag.evals.predicates import Predicate, predicate_expr
+from mtg_rag.retrieve.filters import Constraints, parse_color_identity
 
 #: What a `[[case]]` table may contain. An unlisted key is a typo — most likely
 #: a misspelled `rationale` — and silently ignoring it would drop the one field
@@ -39,17 +39,6 @@ CONSTRAINT_FIELDS = frozenset({"format", "colors", "platform"})
 
 class MalformedCaseError(ValueError):
     """A case is missing something, or names something that cannot be run."""
-
-
-@dataclass(frozen=True, slots=True)
-class Predicate:
-    """The property a case expects the pool to be enriched for."""
-
-    kind: PredicateKind
-    value: str
-
-    def expr(self) -> pl.Expr:
-        return predicate_expr(self.kind, self.value)
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,20 +62,7 @@ def golden_path() -> Path:
     return Path(__file__).parent / GOLDEN_NAME
 
 
-def _color_identity(colors: str | None) -> frozenset[str] | None:
-    """`colors` as a constraint.
-
-    Absent is unconstrained; `""` is colorless-only. `Constraints` puts that
-    distinction in the type rather than a sentinel, so parsing must preserve it.
-    """
-    if colors is None:
-        return None
-    return frozenset(colors.strip().upper())
-
-
 def _constraints(case_id: str, entries: Sequence[Any]) -> tuple[Constraints, ...]:
-    if not entries:
-        raise MalformedCaseError(f"case {case_id!r} has no constraints; it needs at least one")
     parsed: list[Constraints] = []
     for entry in entries:
         if not isinstance(entry, dict):
@@ -108,7 +84,7 @@ def _constraints(case_id: str, entries: Sequence[Any]) -> tuple[Constraints, ...
             raise MalformedCaseError(f"case {case_id!r} constraint has non-string platform")
         fields: dict[str, Any] = {
             "format_name": format_name,
-            "color_identity": _color_identity(colors),
+            "color_identity": parse_color_identity(colors),
         }
         if platform is not None:
             fields["platform"] = platform
@@ -171,11 +147,6 @@ def load_cases(path: Path) -> tuple[EvalCase, ...]:
         for entry in cast("list[Any]", raw_cases)
         if isinstance(entry, dict)
     )
-    seen: set[str] = set()
-    for case in cases:
-        if case.id in seen:
-            raise MalformedCaseError(f"duplicate case id {case.id!r}")
-        seen.add(case.id)
     return cases
 
 

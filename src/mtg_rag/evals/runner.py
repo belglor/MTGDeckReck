@@ -60,53 +60,35 @@ class CaseResult:
 
 
 @dataclass(frozen=True, slots=True)
-class Provenance:
-    """Which corpus, index and settings produced these numbers ([ADR 0011])."""
-
-    model_id: str
-    dim: int
-    corpus_updated_at: str
-    corpus_row_count: int
-    k: int
-    channels: tuple[str, ...]
-
-    @classmethod
-    def from_index(cls, index: VectorIndex, *, k: int, channels: Sequence[Channel]) -> Provenance:
-        return cls(
-            model_id=index.model_id,
-            dim=index.dim,
-            corpus_updated_at=index.corpus_updated_at,
-            corpus_row_count=index.corpus_row_count,
-            k=k,
-            channels=tuple(channels),
-        )
-
-    def as_dict(self) -> dict[str, Any]:
-        return {
-            "model_id": self.model_id,
-            "dim": self.dim,
-            "corpus_updated_at": self.corpus_updated_at,
-            "corpus_row_count": self.corpus_row_count,
-            "k": self.k,
-            "channels": list(self.channels),
-        }
-
-
-@dataclass(frozen=True, slots=True)
 class Report:
-    """A whole eval run.
+    """A whole eval run, stamped with what produced it.
+
+    The stamp is the index's own sidecar rather than a record of its own: the
+    model, dimension and corpus that make two numbers comparable are already
+    recorded there by `just embed`, and copying them into a second type would
+    be a second place for them to be wrong. Only `k` and the channel set are
+    the eval's own ([ADR 0011]).
 
     Deliberately carries **no aggregate**. A mechanic lift and a theme lift are
     not commensurable, and a mean over them would repeat the mistake [ADR 0008]
     refuses for raw similarity scores.
     """
 
-    provenance: Provenance
+    index: VectorIndex
+    k: int
+    channels: tuple[Channel, ...]
     results: tuple[CaseResult, ...]
 
     def as_dict(self) -> dict[str, Any]:
         return {
-            "provenance": self.provenance.as_dict(),
+            "provenance": {
+                "model_id": self.index.model_id,
+                "dim": self.index.dim,
+                "corpus_updated_at": self.index.corpus_updated_at,
+                "corpus_row_count": self.index.corpus_row_count,
+                "k": self.k,
+                "channels": list(self.channels),
+            },
             "cases": [
                 {
                     "id": result.case.id,
@@ -198,7 +180,8 @@ def run_cases(
     frame: pl.DataFrame,
     client: ClientAPI,
     encoder: Encoder,
-    provenance: Provenance,
+    index: VectorIndex,
+    k: int,
     channels: Sequence[Channel],
 ) -> Report:
     """The whole golden set, in file order.
@@ -207,14 +190,7 @@ def run_cases(
     model load per case would dominate everything else.
     """
     results = tuple(
-        run_case(
-            case,
-            frame=frame,
-            client=client,
-            encoder=encoder,
-            k=provenance.k,
-            channels=channels,
-        )
+        run_case(case, frame=frame, client=client, encoder=encoder, k=k, channels=channels)
         for case in cases
     )
-    return Report(provenance=provenance, results=results)
+    return Report(index=index, k=k, channels=tuple(channels), results=results)
