@@ -119,7 +119,12 @@ def _print_pool(pool: list[Candidate], rows: pl.DataFrame, *, explain: bool) -> 
         print(f"     {card['type_line']}   (score {candidate.score:.4f})")
         if explain:
             for source in candidate.sources:
-                print(f"       - {source.channel:<7} rank {source.rank:<3} {source.purpose}")
+                # Distance is shown, never ranked on: it says whether this
+                # channel was confident, which rank alone cannot ([ADR 0008]).
+                print(
+                    f"       - {source.channel:<7} rank {source.rank:<3} "
+                    f"dist {source.distance:.3f}  {source.purpose}"
+                )
 
 
 def main(argv: list[str] | None = None) -> int:

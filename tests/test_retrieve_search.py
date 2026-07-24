@@ -121,7 +121,8 @@ def test_allowlist_ids_missing_from_a_channel_do_not_raise(client: ClientAPI) ->
         top_k=10,
     )
 
-    assert [ids for ids in rankings.values()] == [("alpha", "gamma")]
+    # ids in rank order; distances ride along and are not asserted on here.
+    assert [tuple(hits) for hits in rankings.values()] == [("alpha", "gamma")]
 
 
 def test_channel_allow_ids_matches_the_channels_own_ids() -> None:
@@ -160,7 +161,7 @@ def test_search_is_constrained_to_the_allowlist(client: ClientAPI) -> None:
         top_k=10,
     )
 
-    assert list(rankings.values()) == [("alpha",)]
+    assert [tuple(hits) for hits in rankings.values()] == [("alpha",)]
 
 
 def test_queries_are_encoded_in_one_call(client: ClientAPI) -> None:
@@ -200,7 +201,7 @@ def test_each_channel_returns_its_own_ranking(client: ClientAPI) -> None:
         top_k=10,
     )
 
-    by_channel = {key.channel: ids for key, ids in rankings.items()}
+    by_channel = {key.channel: tuple(hits) for key, hits in rankings.items()}
     assert by_channel["oracle"][0] == "alpha"
     assert by_channel["type"][0] == "beta"
 
@@ -237,7 +238,7 @@ def test_top_k_bounds_each_ranking(client: ClientAPI) -> None:
         top_k=2,
     )
 
-    assert all(len(ids) == 2 for ids in rankings.values())
+    assert all(len(hits) == 2 for hits in rankings.values())
 
 
 def test_empty_allowlist_short_circuits_without_querying(client: ClientAPI) -> None:
@@ -253,7 +254,7 @@ def test_empty_allowlist_short_circuits_without_querying(client: ClientAPI) -> N
         top_k=10,
     )
 
-    assert all(ids == () for ids in rankings.values())
+    assert all(hits == {} for hits in rankings.values())
 
 
 def test_no_queries_yields_no_rankings(client: ClientAPI) -> None:

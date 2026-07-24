@@ -18,21 +18,29 @@ carrying three sources, which is what lets curation see *why* it was retrieved.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from mtg_rag.embed.config import Channel
 from mtg_rag.retrieve.config import RRF_K
-from mtg_rag.retrieve.search import RankingKey
+from mtg_rag.retrieve.search import Ranking, RankingKey
 
 
 @dataclass(frozen=True, slots=True)
 class Source:
-    """One ranking that found a card, and where in it the card sat."""
+    """One ranking that found a card, and where in it the card sat.
+
+    `distance` is the raw cosine distance that channel reported. It is **display
+    only** — `--explain` shows it so a reader can tell a confident top hit from
+    the best of a bad set. It must never enter a ranking decision: distances
+    from different channels are not commensurable, which is the whole reason
+    fusion is ordinal ([ADR 0008], `.claude/rules/fuse-with-rrf.md`).
+    """
 
     purpose: str
     channel: Channel
     rank: int
+    distance: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,8 +52,12 @@ class Candidate:
     sources: tuple[Source, ...]
 
 
-def rrf(rankings: Mapping[RankingKey, Sequence[str]], *, k: int = RRF_K) -> list[Candidate]:
+def rrf(rankings: Mapping[RankingKey, Ranking], *, k: int = RRF_K) -> list[Candidate]:
     """Fuse `rankings` into one pool, best first.
+
+    Rank comes from each ranking's iteration order — `store.search` returns
+    nearest first, and that ordering is the contract. The distance travels into
+    the candidate's sources for display but takes no part in the arithmetic.
 
     Ordering is by score descending, then `oracle_id` — two cards with identical
     scores would otherwise come out in dictionary order, making the pool depend
@@ -54,11 +66,16 @@ def rrf(rankings: Mapping[RankingKey, Sequence[str]], *, k: int = RRF_K) -> list
     scores: dict[str, float] = {}
     sources: dict[str, list[Source]] = {}
 
-    for key, ids in rankings.items():
-        for rank, oracle_id in enumerate(ids):
+    for key, hits in rankings.items():
+        for rank, (oracle_id, distance) in enumerate(hits.items()):
             scores[oracle_id] = scores.get(oracle_id, 0.0) + 1.0 / (k + rank)
             sources.setdefault(oracle_id, []).append(
-                Source(purpose=key.query.purpose, channel=key.channel, rank=rank)
+                Source(
+                    purpose=key.query.purpose,
+                    channel=key.channel,
+                    rank=rank,
+                    distance=distance,
+                )
             )
 
     return [

@@ -1,9 +1,13 @@
 """Fan a plan out across the embedding channels, one ranking per (query, channel).
 
-Each ranking is ids in rank order and nothing else. Distances are deliberately
-dropped: fusion is over ordinal position, because cosine scores from different
-channels are not commensurable ([ADR 0008]). `store.search` already documents
-its iteration order as the payload, so reading rank means enumerating it.
+Each ranking is `store.search`'s rank-ordered mapping of `oracle_id` to
+distance, passed through unchanged. **Rank is the payload; the distance is
+display only.** Fusion reads ordinal position and nothing else, because cosine
+scores from different channels index different registers of text over different
+subsets of the corpus and are not commensurable ([ADR 0008]) — a distance must
+never reach a ranking decision. It is carried because we already paid to fetch
+it and it answers a question rank cannot: whether a channel's top hit was a
+confident match or the best of a bad set. `--explain` shows it.
 
 **The allowlist must be intersected with each channel's own ids before it is
 used.** The constraint filter derives its allowlist from the parquet, which
@@ -21,7 +25,7 @@ records which corpus the index was built from, and `just embed` restores it.
 
 from __future__ import annotations
 
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 
 import polars as pl
@@ -33,6 +37,10 @@ from mtg_rag.embed.config import Channel
 from mtg_rag.embed.encoder import Encoder
 from mtg_rag.plan.query import PlannedQuery
 from mtg_rag.store.chroma import open_collection, search
+
+#: One channel's answer to one query: `oracle_id` to distance, **nearest first**.
+#: Iteration order carries the rank, which is the part fusion uses ([ADR 0008]).
+type Ranking = Mapping[str, float]
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,8 +75,12 @@ def search_channels(
     allow_ids: Collection[str],
     channels: Sequence[Channel],
     top_k: int,
-) -> dict[RankingKey, tuple[str, ...]]:
-    """One ranking of `oracle_id`s per (query, channel), nearest first.
+) -> dict[RankingKey, Ranking]:
+    """One ranking per (query, channel): `oracle_id` to distance, nearest first.
+
+    Iteration order is rank order — that is `store.search`'s documented contract
+    and what fusion consumes. The distances ride along for display and must not
+    be read as a score (see the module docstring).
 
     Every query text is encoded in a single batched call, then searched channel
     by channel. **The loop is sequential on purpose.** An allowlisted search
@@ -82,11 +94,11 @@ def search_channels(
 
     vectors = encoder.encode_queries([query.query_text for query in queries])
 
-    rankings: dict[RankingKey, tuple[str, ...]] = {}
+    rankings: dict[RankingKey, Ranking] = {}
     for channel in channels:
         permitted = channel_allow_ids(frame, channel, allow_ids)
         collection = open_collection(client, channel)
         for query, vector in zip(queries, vectors, strict=True):
             hits = search(collection, vector, allow_ids=permitted, n_results=top_k)
-            rankings[RankingKey(query=query, channel=channel)] = tuple(hits)
+            rankings[RankingKey(query=query, channel=channel)] = hits
     return rankings
