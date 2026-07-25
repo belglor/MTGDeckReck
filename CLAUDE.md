@@ -6,59 +6,58 @@ What it is and how it works: `docs/spec.md`. Why it works that way: `docs/adr/`.
 
 ## Commands
 
-`just` is the command surface — see `justfile`. Key recipes: `just setup`, `just lint`, `just typecheck`, `just test`, `just check` (all of the above).
+`just` is the command surface — see `justfile`. Core: `just setup`, `just lint`, `just typecheck`, `just test`, `just check` (all four).
 
-`just ingest` builds the card corpus at `data/cards.parquet` from Scryfall's bulk
-snapshot; `just embed` builds the vector index at `data/vectors/` (one Chroma
-collection per channel) plus its `data/vectors.meta.json` sidecar; `just retrieve
-"a query"` searches that index and prints a fused candidate pool; `just eval`
-runs the golden set against that index and reports retrieval lift; `just
-notebook` opens JupyterLab. The build steps are manual — there is no scheduled
-refresh. `data/` is gitignored and fully reproducible.
+Build steps are manual (no scheduled refresh); `data/` is gitignored and reproducible:
 
-`just eval` needs a built corpus and index, so it stays out of `just check` and
-out of CI. Its numbers are a regression signal, never a gate, and it never fails
-a run — see [ADR 0020](docs/adr/0020-eval-case-is-a-corpus-predicate.md).
+- `just ingest` — card corpus at `data/cards.parquet` from Scryfall's bulk snapshot.
+- `just embed` — vector index at `data/vectors/`, one Chroma collection per channel, plus its `data/vectors.meta.json` sidecar.
+- `just retrieve "a query"` — searches the index, prints a fused candidate pool.
+- `just eval` — runs the golden set, reports retrieval lift.
+- `just notebook` — opens JupyterLab.
 
-The justfile sets `positional-arguments` so recipe arguments arrive as `"$@"`
-rather than being re-split on whitespace — `just retrieve "graveyard recursion"`
-must be one query, not three.
+`just eval` needs a built corpus and index, so it stays out of `just check` and CI. Its numbers are a regression signal, never a gate; it never fails a run ([ADR 0020](docs/adr/0020-eval-case-is-a-corpus-predicate.md)).
 
-`just setup` installs everything, the embedding model included — retrieval
-encodes queries with it, so it is a core dependency and imported normally.
+Two traps: the justfile sets `positional-arguments`, so `just retrieve "graveyard recursion"` is one query, not three; and `just setup` installs the embedding model, which retrieval encodes queries with — a core dependency, imported normally.
 
 ## Git practices
 
 - Branch per unit of work, named `area/short-description` (e.g. `ci/on-demand-review`).
-- Small, logically-scoped commits — one concern per commit; message explains *why*, not just what.
-- PR descriptions: Summary (bulleted, what changed), Reviewer notes (non-obvious decisions, trade-offs, deferred work), Test plan (what was actually verified).
-- Never force-push a branch under review or skip hooks (`--no-verify`) to push a commit through — fix the underlying issue instead.
+- Small, logically-scoped commits — one concern each; the message says *why*, not just what.
+- PR descriptions: Summary (what changed), Reviewer notes (non-obvious decisions, trade-offs, deferred work), Test plan (what was verified).
+- Never force-push a branch under review, or skip hooks (`--no-verify`) — fix the underlying issue.
+- Before opening a PR, self-review the diff against this file's rules and cut what a reviewer would flag.
 
 ## CI / PR workflow
 
-- `main` is protected: no direct pushes. Changes land via PR with a green `check` run, and a human merges — agent review is advisory, not a merge gate.
-- `.github/workflows/ci.yml` mirrors `just check` (lint → typecheck → test) on every PR to `main`. Keep it that way: to change what CI does, edit the `justfile` recipe, not the workflow.
-- Don't write `@claude` or `@autoreview` into an issue body or comment unless you mean to start a workflow run — `claude.yml` triggers on `issues: [opened]`. PR bodies are safe; there is no `pull_request` trigger. `README.md` documents both for humans.
-- New work starts from an issue filed with the **Agent task** template (`.github/ISSUE_TEMPLATE/agent-task.yml`), which applies the `agent-ready` label. Scope one concern per issue.
+- `main` is protected: no direct pushes. Changes land via PR with a green `check`; a human merges. Agent review is advisory, not a gate.
+- `.github/workflows/ci.yml` mirrors `just check`. To change what CI does, edit the `justfile` recipe, not the workflow.
+- `@claude` / `@autoreview` in an issue or comment starts a workflow run — don't write them unless you mean to. PR bodies are safe (no `pull_request` trigger).
+- New work starts from an issue on the **Agent task** template (`.github/ISSUE_TEMPLATE/agent-task.yml`, label `agent-ready`). One concern per issue.
 
 ## Testing philosophy
 
-TDD: write the test before the code it verifies. Don't chase coverage percentage — test core functionality, real logic branches, and edge cases (empty results, boundary values, malformed input). Skip tests that just restate the implementation.
+TDD: write the test first. Don't chase coverage — test real logic branches and edge cases (empty results, boundaries, malformed input), and skip tests that just restate the implementation.
+
+Unit-test the unit; fake its collaborators. A test that stands up a real collaborator to check logic that isn't it tests the wrong thing, and is usually the flakiest. End-to-end and integration tests belong to their own ecosystem, deferred until the pieces stand alone. If a collaborator can't be faked without a seam, that's the code asking for one.
 
 ## Documentation
 
-Applies to everything written here — `README.md`, docstrings, code comments, ADRs, issue bodies, PR descriptions, commit messages. Write for someone who hasn't read the rest of the repo.
+Applies to everything written — `README.md`, docstrings, comments, ADRs, issues, PRs, commit messages. Write for someone who hasn't read the rest of the repo.
 
-- Favor understandability over precision. If a plainer phrasing is nearly as accurate, use it and let the ADR carry the exact version.
-- Be concise and focused: answer the question at hand, skip context the reader doesn't need in order to act, and keep examples minimal.
-- Say a thing once. A decision lives in its ADR; code and `README.md` state the rule and link to it rather than retelling the reasoning.
+- Plain words over jargon; a plainer phrasing over an exact one when it's nearly as accurate (let the ADR carry the exact version).
+- Be concise: answer the question at hand, skip context the reader doesn't need to act, keep examples minimal.
+- Say a thing once. A decision lives in its ADR; code and `README.md` state the rule and link it.
+- Two signs a doc was written for the author's live context, not a fresh reader: it runs much longer than its siblings, or it only parses once you've opened another file. Define a term at first use; don't explain a branch that can't happen.
+- Stamp a table or measurement with what produced it (corpus date, config, `k`). An older stamped result stands for its snapshot: record fresher numbers as new rather than reopening or "correcting" the old over drift. Fix genuine errors, not version skew.
 
-The issue template and the PR sections named above are shapes to fill, not quotas to meet. A section with nothing to report stays short or says so.
+The issue template and PR sections are shapes to fill, not quotas. A section with nothing to report stays short or says so.
 
 ## Guardrails
 
-- Don't add fields, hooks, or abstractions for a feature that isn't in current scope (`docs/spec.md`). If it turns out to be needed, that's a small diff later. Cite this rule if asked to add a "zero-cost hook" or similar forward-compatibility scaffolding.
-- Module-level constants live in a config module, never in the preamble of the module that reads them. Exclusion lists, tunables, file and directory names, URLs, separators, model ids, dimensions, batch sizes — all of it. Use `<package>/config.py` for a package (`ingest/config.py`) and `<module>_config.py` for a package-root module (`corpus_config.py`); the code that needs a value imports it. This keeps a module's logic and its data able to change independently, so adding a layout or bumping a dimension is a one-line diff in a file whose whole job is holding values.
+- Don't add fields, hooks, or abstractions for out-of-scope features (`docs/spec.md`) — if needed later, that's a small diff. Cite this if asked for a "zero-cost hook" or similar forward-compatibility scaffolding.
+- Match a function's resilience to its real callers. External edges — Scryfall ingestion, CLI input, file parsing — stay strict; code reached only from inside trusts the invariants its callers guarantee rather than re-checking states they can't produce. A guard against the impossible is dead code dragging a dead test behind it — when its failing input can't arise, cut it.
+- Module-level constants live in a config module, never in the preamble of the module that reads them — exclusion lists, tunables, file/dir names, URLs, separators, model ids, dimensions, batch sizes. Use `<package>/config.py` (`ingest/config.py`) or `<module>_config.py` for a package-root module (`corpus_config.py`); the reader imports what it needs, so logic and data change independently.
 - After a feature lands, update `README.md` and this file to match.
 
 ## Agent context files
