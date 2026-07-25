@@ -41,10 +41,10 @@ def base_rate(frame: pl.DataFrame, constraints: Constraints, predicate: pl.Expr)
 def precision(frame: pl.DataFrame, pool_ids: Sequence[str], predicate: pl.Expr) -> float | None:
     """The predicate's share of the cards retrieval **chose**.
 
-    Divides by the pool actually returned, never by the requested `k`: a tight
-    constraint legitimately returns fewer, and so does any `k` above what three
-    channels can surface. Ids the corpus no longer holds are counted in neither
-    numerator nor denominator, matching `pool.hydrate`, which drops them.
+    The ids are looked up in the corpus to get their rows, since the predicate
+    tests card fields and a bare id cannot be matched against it. The denominator
+    is how many cards actually came back, not the `k` that was requested — a run
+    can return fewer — and an empty result has no defined precision, so it is None.
     """
     ids = list(pool_ids)
     if not ids:
