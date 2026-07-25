@@ -139,8 +139,8 @@ just eval
 just eval --case graveyard
 ```
 
-A case is a query, a **corpus predicate**, and one or more constraint sets — no
-case names an expected card
+A case is a query, a **corpus predicate** (a yes/no test each card passes or
+fails), and one or more constraint sets — no case names an expected card
 ([ADR 0020](docs/adr/0020-eval-case-is-a-corpus-predicate.md)). The predicate is
 the ground truth and gets applied twice: over the corpus the constraints allow,
 giving a base rate, and over the pool that came back, giving precision. Their
