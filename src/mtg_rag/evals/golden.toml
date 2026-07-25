@@ -103,3 +103,22 @@ constraints = [
     { format = "commander" },
     { format = "commander", colors = "W" },
 ]
+
+# The tighter proxy: whether a card is a Zombie is a fact off the type line;
+# only the set of "graveyard" creature types is a judgment (Zombie, Vampire and
+# Skeleton are unarguable; Shade, Specter and Wraith are the softer additions;
+# Spirit and Horror are left out as off-theme). Watch it change with colour and
+# read retention against precision: black keeps ~half the pool graveyard while
+# its base rate triples, so retention falls without retrieval failing; a colour
+# short on these creatures instead shows precision itself drop.
+[[case]]
+id = "graveyard-creatures"
+query = "creatures for a graveyard themed deck"
+rationale = "No keyword marks a graveyard creature; the creature type off the type line is the matter-of-fact proxy, with the type set fixed so it can detect movement."
+predicate = { type_line = "(?i)(zombie|vampire|skeleton|shade|specter|wraith)" }
+constraints = [
+    { format = "commander" },
+    { format = "commander", colors = "B" },
+    { format = "commander", colors = "W" },
+    { format = "commander", colors = "G" },
+]

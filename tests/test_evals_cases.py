@@ -24,12 +24,14 @@ from mtg_rag.ingest.normalize import build_frame, normalize_card
 from mtg_rag.retrieve.config import DEFAULT_PLATFORM
 
 
-def _card(name: str, *, keywords: list[str] | None = None) -> dict[str, Any]:
+def _card(
+    name: str, *, keywords: list[str] | None = None, type_line: str = "Creature — Test"
+) -> dict[str, Any]:
     return {
         "oracle_id": f"id-{name}",
         "name": name,
         "oracle_text": "Draw a card, then discard a card.",
-        "type_line": "Creature — Test",
+        "type_line": type_line,
         "keywords": keywords or [],
         "color_identity": ["B"],
         "layout": "normal",
@@ -110,9 +112,23 @@ def test_platform_is_carried_when_given(tmp_path: Path) -> None:
 
 
 def test_unknown_predicate_kind_raises(tmp_path: Path) -> None:
-    body = MINIMAL.replace('{ keyword = "Connive" }', '{ type_line = "Goblin" }')
-    with pytest.raises(UnknownPredicateKindError, match="type_line"):
+    body = MINIMAL.replace('{ keyword = "Connive" }', '{ rarity = "mythic" }')
+    with pytest.raises(UnknownPredicateKindError, match="rarity"):
         load_cases(_write(tmp_path, body))
+
+
+def test_type_line_predicate_loads_and_matches_the_subtype(tmp_path: Path) -> None:
+    """The kind added for graveyard-creature cases: a regex over the type line."""
+    body = MINIMAL.replace('{ keyword = "Connive" }', '{ type_line = "(?i)zombie" }')
+    (case,) = load_cases(_write(tmp_path, body))
+    assert case.predicate.kind == "type_line"
+
+    zombie = build_frame([normalize_card(_card("z", type_line="Creature — Zombie"))])
+    validate_against_corpus([case], zombie)  # a match: base rate > 0, no raise
+
+    human = build_frame([normalize_card(_card("h", type_line="Creature — Human"))])
+    with pytest.raises(MalformedCaseError):
+        validate_against_corpus([case], human)
 
 
 def test_missing_rationale_raises(tmp_path: Path) -> None:

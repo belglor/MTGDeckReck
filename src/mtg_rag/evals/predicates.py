@@ -41,17 +41,21 @@ def predicate_expr(kind: str, value: str) -> pl.Expr:
     case wrong matches nothing, which surfaces as a zero base rate and is
     refused by `cases.validate_against_corpus` rather than silently scoring 0.
 
-    `oracle_text` is a regex, so it carries its own flags: write `(?i)` for a
-    case-insensitive match. A null oracle text is not a match rather than a
-    null, matching how `retrieve.filters` guards its own three-valued logic.
+    `oracle_text` and `type_line` are regexes, so they carry their own flags:
+    write `(?i)` for a case-insensitive match. A null column value is not a match
+    rather than a null, matching how `retrieve.filters` guards its own
+    three-valued logic. `type_line` reads creature type and card type off the
+    printed type line — a graveyard-creature case matches on the subtypes.
 
-    Only the two kinds the golden set actually uses are built. A third would be
-    scaffolding for a case that does not exist ([CLAUDE.md]).
+    Only the kinds a golden-set case actually uses are built. A new kind is added
+    when a case needs it, never for symmetry ([CLAUDE.md]).
     """
     if kind == "keyword":
         return pl.col("keywords").list.contains(value)
     if kind == "oracle_text":
         return pl.col("oracle_text").str.contains(value).fill_null(False)
+    if kind == "type_line":
+        return pl.col("type_line").str.contains(value).fill_null(False)
     raise UnknownPredicateKindError(
-        f"unknown predicate kind {kind!r}; available: keyword, oracle_text"
+        f"unknown predicate kind {kind!r}; available: keyword, oracle_text, type_line"
     )

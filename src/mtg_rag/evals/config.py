@@ -12,9 +12,11 @@ from typing import Literal
 
 #: How a case names its expected set ([ADR 0020]). `keyword` reads Scryfall's
 #: structured `keywords` column, so membership is a matter of fact. `oracle_text`
-#: is a regex over rules prose and is a **proxy** — it is admissible only because
-#: it is a fixed ruler compared to itself across runs, never as an absolute score.
-type PredicateKind = Literal["keyword", "oracle_text"]
+#: and `type_line` are regexes over card text and are **proxies** — admissible
+#: only because they are fixed rulers compared to themselves across runs, never as
+#: an absolute score. `type_line` is the tighter proxy: whether a card is a Zombie
+#: is a fact, and only the set of "graveyard" creature types is a judgment.
+type PredicateKind = Literal["keyword", "oracle_text", "type_line"]
 
 #: Name of the golden set, resolved relative to this package.
 GOLDEN_NAME = "golden.toml"
