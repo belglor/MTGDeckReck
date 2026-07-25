@@ -1,143 +1,63 @@
 """Tests for the eval runner: what a run produces, and what it refuses to do.
 
-Offline throughout — the fixture corpus, a deterministic stand-in encoder, and an
-in-memory Chroma index. See the `client` fixture for why it is built the way
-it is — every detail there is load-bearing against a flake.
+The runner is handed a `Retriever` ([ADR 0020]), so these tests supply a
+stand-in that returns canned ids — no model, no store, no Chroma. Retrieval has
+its own tests; here the pool is an input, which lets every metric be asserted to
+an exact value and keeps the suite off the vector store entirely.
 """
 
 from __future__ import annotations
 
-import json
-import time
 from collections.abc import Sequence
-from pathlib import Path
 from typing import Any
 
-import chromadb
-import numpy as np
 import polars as pl
 import pytest
-from chromadb.api import ClientAPI
-from chromadb.config import Settings
-from chromadb.errors import InternalError
-from numpy.typing import NDArray
 
-from mtg_rag.corpus_config import ID_COLUMN
-from mtg_rag.embed.channels import channel_frame
-from mtg_rag.embed.config import CHANNELS, DOCUMENT_BATCH_SIZE, QUERY_BATCH_SIZE, Channel
+from mtg_rag.embed.config import CHANNELS
 from mtg_rag.embed.index import VectorIndex
 from mtg_rag.evals.cases import EvalCase
 from mtg_rag.evals.predicates import Predicate
-from mtg_rag.evals.runner import CaseResult, Report, Run, run_case, run_cases
+from mtg_rag.evals.runner import CaseResult, Report, Retriever, Run, run_case, run_cases
 from mtg_rag.ingest.normalize import build_frame, normalize_card
+from mtg_rag.plan.query import PlannedQuery
 from mtg_rag.retrieve.filters import Constraints
-from mtg_rag.store.chroma import open_collection, reset_collection, search, write_vectors
-from mtg_rag.store.config import ANONYMIZED_TELEMETRY
 
-FIXTURES = Path(__file__).parent / "fixtures" / "cards.jsonl"
+
+def _card(
+    name: str, *, keywords: list[str] | None = None, colors: list[str] | None = None
+) -> dict[str, Any]:
+    return {
+        "oracle_id": f"id-{name}",
+        "name": name,
+        "oracle_text": None,
+        "type_line": "Creature — Test",
+        "keywords": keywords or [],
+        "color_identity": colors or [],
+        "layout": "normal",
+        "set_type": "expansion",
+        "released_at": "2020-01-01",
+        "games": ["paper"],
+        "legalities": {"commander": "legal"},
+    }
+
+
+#: Cycling density differs by colour on purpose, so a base rate that follows the
+#: constraint can be told apart from one that does not: 3/6 over the whole set,
+#: 1/3 among the white-fittable cards, 2/3 among the black.
+CARDS = [
+    _card("wc1", keywords=["Cycling"], colors=["W"]),
+    _card("wp1", colors=["W"]),
+    _card("wp2", colors=["W"]),
+    _card("bc1", keywords=["Cycling"], colors=["B"]),
+    _card("bc2", keywords=["Cycling"], colors=["B"]),
+    _card("bp1", colors=["B"]),
+]
 
 
 @pytest.fixture(scope="module")
 def corpus() -> pl.DataFrame:
-    lines = FIXTURES.read_text(encoding="utf-8").splitlines()
-    cards: list[dict[str, Any]] = [json.loads(line) for line in lines if line.strip()]
-    return build_frame([normalize_card(card) for card in cards])
-
-
-class LengthEncoder:
-    """Deterministic stand-in — no model, no download."""
-
-    def __init__(self) -> None:
-        self.dim = 2
-
-    def encode_documents(
-        self, texts: Sequence[str], *, batch_size: int = DOCUMENT_BATCH_SIZE
-    ) -> NDArray[np.float32]:  # pragma: no cover - the eval only encodes queries
-        raise AssertionError("the eval must not encode documents")
-
-    def encode_queries(
-        self, texts: Sequence[str], *, batch_size: int = QUERY_BATCH_SIZE
-    ) -> NDArray[np.float32]:
-        return np.array([[1.0, 0.0] for _ in texts], dtype=np.float32)
-
-
-@pytest.fixture(scope="module")
-def client(corpus: pl.DataFrame) -> ClientAPI:
-    """An index built from the fixture corpus, once, in memory.
-
-    Three details here are load-bearing against an intermittent Chroma failure
-    that made this module fail roughly one run in ten, measured in isolation —
-    it was never cross-module, whatever the shared `EphemeralClient` system
-    might suggest.
-
-    **In memory, not on disk.** A `PersistentClient` on a private path still
-    failed at ~2% with `Nothing found on disk`: the HNSW segment is not on disk
-    the instant `write_vectors` returns, and a reader opened before it lands
-    finds nothing. An in-memory store cannot miss a file it never writes.
-
-    **Built once per module.** Rebuilding these collections per test only widens
-    the window in which that race can be lost. Nothing here mutates the store.
-
-    **`client.reset()` is deliberately not called.** `EphemeralClient` hands
-    back one shared system per settings hash, so a reset would wipe collections
-    belonging to whichever module runs next.
-    """
-    store = chromadb.EphemeralClient(
-        settings=Settings(anonymized_telemetry=ANONYMIZED_TELEMETRY, allow_reset=True)
-    )
-    for channel in CHANNELS:
-        ids = channel_frame(corpus, channel)[ID_COLUMN].to_list()
-        collection = reset_collection(store, channel)
-        vectors = {
-            card_id: np.array([1.0, index / max(len(ids), 1)], dtype=np.float32)
-            for index, card_id in enumerate(ids)
-        }
-        if not vectors:
-            continue
-        write_vectors(store, collection, vectors)
-        assert collection.count() == len(vectors)
-        _warm_up(store, channel, sorted(vectors))
-    # A blunt backstop for the ~2% the warm-up leaves. Give the store a second to
-    # settle before any test queries it. Lazy and untested on purpose: the race
-    # never reaches production, so a one-line sleep is more than it is worth.
-    time.sleep(1)
-    return store
-
-
-def _warm_up(client: ClientAPI, channel: Channel, ids: list[str], *, attempts: int = 20) -> None:
-    """Query through the same handle retrieval uses, until it answers.
-
-    The handle matters. `search_channels` does not reuse the `Collection` that
-    wrote the vectors — it opens its own with `open_collection` — and it is that
-    fresh handle which intermittently finds nothing just after a write: on a
-    persistent store as `Nothing found on disk`, on an ephemeral one as
-    `Error finding id`. Warming the fixture's own handle proved nothing about
-    it, which is why an earlier version of this still failed at ~6%.
-
-    Only tests hit this shape. `just embed` writes the index and exits; `just
-    eval` opens it in a later process, so nothing in production queries a
-    collection it wrote moments ago through a second handle.
-    """
-    probe = np.array([1.0, 0.0], dtype=np.float32)
-    for attempt in range(attempts):
-        try:
-            search(open_collection(client, channel), probe, allow_ids=ids, n_results=1)
-        except InternalError:
-            if attempt == attempts - 1:
-                raise
-            time.sleep(0.05)
-        else:
-            return
-
-
-INDEX = VectorIndex(
-    model_id="test/model",
-    dim=2,
-    corpus_updated_at="2026-07-22T21:12:36.682+00:00",
-    corpus_row_count=17,
-    channel_counts={"oracle": 17, "flavor": 3, "type": 17},
-    embedded_at="2026-07-23T20:40:10.699755+00:00",
-)
+    return build_frame([normalize_card(card) for card in CARDS])
 
 
 def _case(constraints: tuple[Constraints, ...], *, keyword: str = "Cycling") -> EvalCase:
@@ -150,89 +70,107 @@ def _case(constraints: tuple[Constraints, ...], *, keyword: str = "Cycling") -> 
     )
 
 
-def _run(case: EvalCase, corpus: pl.DataFrame, client: ClientAPI, k: int = 10):
-    return run_case(
-        case,
-        frame=corpus,
-        client=client,
-        encoder=LengthEncoder(),
-        k=k,
-        channels=CHANNELS,
-    )
+def _fixed(*ids: str) -> Retriever:
+    """A retriever that returns the same ids under every constraint set."""
+
+    def retriever(queries: Sequence[PlannedQuery], constraints: Constraints) -> list[str]:
+        return list(ids)
+
+    return retriever
+
+
+def _per_color(pools: dict[frozenset[str] | None, list[str]]) -> Retriever:
+    """A retriever whose pool depends on the constraint's colour identity."""
+
+    def retriever(queries: Sequence[PlannedQuery], constraints: Constraints) -> list[str]:
+        return pools[constraints.color_identity]
+
+    return retriever
+
+
+INDEX = VectorIndex(
+    model_id="test/model",
+    dim=2,
+    corpus_updated_at="2026-07-22T21:12:36.682+00:00",
+    corpus_row_count=6,
+    channel_counts={"oracle": 6, "flavor": 0, "type": 6},
+    embedded_at="2026-07-23T20:40:10.699755+00:00",
+)
 
 
 # --- what a run produces ---------------------------------------------------
 
 
-def test_one_run_per_constraint_set_in_file_order(corpus: pl.DataFrame, client: ClientAPI) -> None:
-    case = _case(
-        (
-            Constraints("commander"),
-            Constraints("commander", frozenset({"W"})),
-        )
-    )
-    result = _run(case, corpus, client)
+def test_one_run_per_constraint_set_in_file_order(corpus: pl.DataFrame) -> None:
+    case = _case((Constraints("commander"), Constraints("commander", frozenset({"W"}))))
+    result = run_case(case, frame=corpus, retriever=_fixed("id-wc1"))
     assert [run.constraints.color_identity for run in result.runs] == [None, frozenset({"W"})]
 
 
-def test_the_first_constraint_set_is_the_retention_reference(
-    corpus: pl.DataFrame, client: ClientAPI
-) -> None:
-    result = _run(_case((Constraints("commander"),)), corpus, client)
+def test_the_first_constraint_set_is_the_retention_reference(corpus: pl.DataFrame) -> None:
+    result = run_case(_case((Constraints("commander"),)), frame=corpus, retriever=_fixed("id-wc1"))
     assert result.runs[0].retention == pytest.approx(1.0)
 
 
-def test_retention_is_measured_against_the_first_run(
-    corpus: pl.DataFrame, client: ClientAPI
-) -> None:
-    case = _case((Constraints("commander"), Constraints("commander", frozenset({"W"}))))
-    reference, tighter = _run(case, corpus, client).runs
-    assert reference.lift is not None and tighter.lift is not None
-    assert tighter.retention == pytest.approx(tighter.lift / reference.lift)
+def test_retention_is_exactly_lift_over_the_reference(corpus: pl.DataFrame) -> None:
+    # commander: precision 2/2 over base 3/6  -> lift 2.0
+    # white:     precision 1/1 over base 1/3  -> lift 3.0  -> retention 1.5
+    retriever = _per_color({None: ["id-wc1", "id-bc1"], frozenset({"W"}): ["id-wc1"]})
+    ref, tighter = run_case(
+        _case((Constraints("commander"), Constraints("commander", frozenset({"W"})))),
+        frame=corpus,
+        retriever=retriever,
+    ).runs
+    assert ref.lift == pytest.approx(2.0)
+    assert tighter.lift == pytest.approx(3.0)
+    assert tighter.retention == pytest.approx(1.5)
 
 
-def test_base_rate_differs_between_constraint_sets(corpus: pl.DataFrame, client: ClientAPI) -> None:
-    """The denominator must follow the constraint, or lift means nothing."""
-    case = _case((Constraints("commander"), Constraints("commander", frozenset({"W"}))))
-    reference, tighter = _run(case, corpus, client).runs
-    assert reference.base_rate != tighter.base_rate
+def test_base_rate_follows_the_constraint(corpus: pl.DataFrame) -> None:
+    """The denominator must track the constraint, or lift means nothing."""
+    ref, tighter = run_case(
+        _case((Constraints("commander"), Constraints("commander", frozenset({"W"})))),
+        frame=corpus,
+        retriever=_fixed("id-wc1"),
+    ).runs
+    assert ref.base_rate == pytest.approx(0.5)
+    assert tighter.base_rate == pytest.approx(1 / 3)
 
 
-def test_pool_size_is_what_came_back_not_what_was_asked_for(
-    corpus: pl.DataFrame, client: ClientAPI
-) -> None:
-    """The fixture corpus is far smaller than k, so the pool must be short."""
-    result = _run(_case((Constraints("commander"),)), corpus, client, k=500)
-    assert 0 < result.runs[0].pool_size < 500
+def test_pool_size_is_the_number_of_ids_returned(corpus: pl.DataFrame) -> None:
+    result = run_case(
+        _case((Constraints("commander"),)),
+        frame=corpus,
+        retriever=_fixed("id-wc1", "id-bc1", "id-wp1"),
+    )
+    assert result.runs[0].pool_size == 3
 
 
 # --- what a run refuses to do ----------------------------------------------
 
 
-def test_a_poor_metric_does_not_fail_the_run(corpus: pl.DataFrame, client: ClientAPI) -> None:
+def test_a_poor_metric_does_not_fail_the_run(corpus: pl.DataFrame) -> None:
     """A number the reader dislikes is the output, not an error ([ADR 0011])."""
     case = _case((Constraints("commander"),), keyword="Fuse")
-    result = _run(case, corpus, client)
-    assert result.runs[0].precision is not None
+    result = run_case(case, frame=corpus, retriever=_fixed("id-wp1"))
+    assert result.runs[0].precision == 0.0
 
 
-def test_an_unsatisfiable_constraint_reports_rather_than_raises(
-    corpus: pl.DataFrame, client: ClientAPI
-) -> None:
-    """Colorless-only against a coloured predicate: an empty pool is honest output."""
-    case = _case((Constraints("commander", frozenset()),))
-    result = _run(case, corpus, client)
+def test_an_empty_pool_reports_undefined_rather_than_raising(corpus: pl.DataFrame) -> None:
+    """Retrieval can legitimately return nothing; that is honest output, not an error."""
+    result = run_case(_case((Constraints("commander"),)), frame=corpus, retriever=_fixed())
     run = result.runs[0]
-    assert run.precision is None or run.precision == 0.0
+    assert run.pool_size == 0
+    assert run.precision is None
+    assert run.lift is None
 
 
-def test_run_cases_returns_one_result_per_case(corpus: pl.DataFrame, client: ClientAPI) -> None:
+def test_run_cases_returns_one_result_per_case(corpus: pl.DataFrame) -> None:
     """The only thing `run_cases` does that `run_case` does not."""
     report = run_cases(
         [_case((Constraints("commander"),)), _case((Constraints("commander"),), keyword="Fuse")],
         frame=corpus,
-        client=client,
-        encoder=LengthEncoder(),
+        retriever=_fixed("id-wc1"),
         index=INDEX,
         k=10,
         channels=CHANNELS,

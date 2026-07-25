@@ -32,7 +32,7 @@ from mtg_rag.evals.cases import (
     validate_against_corpus,
 )
 from mtg_rag.evals.config import DEFAULT_EVAL_K, REPORT_NAME
-from mtg_rag.evals.runner import Report, run_cases
+from mtg_rag.evals.runner import Report, chroma_retriever, run_cases
 from mtg_rag.ingest.config import CORPUS_NAME
 from mtg_rag.retrieve.filters import Constraints
 from mtg_rag.store.chroma import open_client
@@ -161,13 +161,19 @@ def main(argv: list[str] | None = None) -> int:
     print("Loading the model...\n")
     encoder = QwenEncoder()
     client = open_client(vector_dir)
+    retriever = chroma_retriever(
+        frame=frame,
+        client=client,
+        encoder=encoder,
+        channels=CHANNELS,
+        pool_size=args.pool_size,
+    )
 
     started = time.perf_counter()
     report = run_cases(
         cases,
         frame=frame,
-        client=client,
-        encoder=encoder,
+        retriever=retriever,
         index=index,
         k=args.pool_size,
         channels=CHANNELS,

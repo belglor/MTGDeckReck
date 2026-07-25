@@ -1,9 +1,10 @@
-"""Run the golden set through the real retrieval path and build a report.
+"""Run the golden set through a retriever and build a report.
 
-Every case goes through `retrieve.pool.retrieve()` — the eval measures the
-thing that ships, not a copy of it. What the eval supplies itself is the
-`PlannedQuery` list, so a pool is a deterministic function of (corpus, index,
-query, constraints); the planner is out of the loop by construction ([ADR 0020]).
+The runner orchestrates and scores; it is handed a `Retriever` and never touches
+the store itself. `chroma_retriever` is the production one — the real retrieval
+path, the thing that ships, not a copy. The eval supplies the `PlannedQuery`
+list, so a pool is a deterministic function of (corpus, index, query,
+constraints); the planner is out of the loop by construction ([ADR 0020]).
 
 **Nothing here fails a run.** A poor number is the output, not an error
 ([ADR 0011]). The one thing that does raise is a malformed case, and that is
@@ -19,7 +20,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 import polars as pl
 from chromadb.api import ClientAPI
@@ -125,15 +126,50 @@ def _colors(constraints: Constraints) -> str | None:
     return "".join(sorted(constraints.color_identity))
 
 
-def run_case(
-    case: EvalCase,
+class Retriever(Protocol):
+    """A query set and constraints in, the oracle_ids retrieval chose out.
+
+    The eval orchestrates and scores; *how* retrieval happens is this callable's
+    business. `chroma_retriever` is the production one; a test passes a stand-in
+    that returns canned ids with no model and no store.
+    """
+
+    def __call__(
+        self, queries: Sequence[PlannedQuery], constraints: Constraints
+    ) -> Sequence[str]: ...
+
+
+def chroma_retriever(
     *,
     frame: pl.DataFrame,
     client: ClientAPI,
     encoder: Encoder,
-    k: int,
     channels: Sequence[Channel],
-) -> CaseResult:
+    pool_size: int,
+) -> Retriever:
+    """The default `Retriever`: the real retrieval path, bound to its dependencies.
+
+    The template every `Retriever` follows — run the query through `retrieve`
+    under the constraints, return the pool's oracle_ids. The one place the eval
+    touches the store; `run_case` above it stays store-agnostic.
+    """
+
+    def retriever(queries: Sequence[PlannedQuery], constraints: Constraints) -> list[str]:
+        pool = retrieve(
+            queries,
+            constraints=constraints,
+            frame=frame,
+            client=client,
+            encoder=encoder,
+            channels=channels,
+            pool_size=pool_size,
+        )
+        return [candidate.oracle_id for candidate in pool]
+
+    return retriever
+
+
+def run_case(case: EvalCase, *, frame: pl.DataFrame, retriever: Retriever) -> CaseResult:
     """Every constraint set of one case, in file order.
 
     The first constraint set is the reference every later run's retention is
@@ -146,16 +182,7 @@ def run_case(
     runs: list[Run] = []
     reference: float | None = None
     for constraints in case.constraints:
-        pool = retrieve(
-            queries,
-            constraints=constraints,
-            frame=frame,
-            client=client,
-            encoder=encoder,
-            channels=channels,
-            pool_size=k,
-        )
-        ids = [candidate.oracle_id for candidate in pool]
+        ids = retriever(queries, constraints)
         base = base_rate(frame, constraints, predicate)
         precision_value = precision(frame, ids, predicate)
         lift_value = lift(precision_value, base)
@@ -178,19 +205,17 @@ def run_cases(
     cases: Sequence[EvalCase],
     *,
     frame: pl.DataFrame,
-    client: ClientAPI,
-    encoder: Encoder,
+    retriever: Retriever,
     index: VectorIndex,
     k: int,
     channels: Sequence[Channel],
 ) -> Report:
     """The whole golden set, in file order.
 
-    One encoder and one client for the run — a case is cheap, and paying the
-    model load per case would dominate everything else.
+    One `retriever` for the run — built once over one client and encoder, since
+    paying the model load per case would dominate everything else. `k` and
+    `channels` are carried only to stamp the report; the retriever already holds
+    the values it retrieves with.
     """
-    results = tuple(
-        run_case(case, frame=frame, client=client, encoder=encoder, k=k, channels=channels)
-        for case in cases
-    )
+    results = tuple(run_case(case, frame=frame, retriever=retriever) for case in cases)
     return Report(index=index, k=k, channels=tuple(channels), results=results)
