@@ -1,14 +1,12 @@
 """Which rows are real cards, and which are tokens, emblems and other props.
 
-Ingestion keeps everything Scryfall ships ([ADR 0009]), so the corpus holds both.
-This predicate separates them on `layout` and `set_type` alone. Legality, colour
-and platform are retrieval-time filters ([ADR 0001]) and deliberately not part of
-the judgement — folding one in would make the index encode policy.
+Ingestion keeps everything Scryfall ships ([ADR 0009]), so this predicate
+separates the real cards on `layout` and `set_type` alone. Legality, colour and
+platform are retrieval-time filters ([ADR 0001]), deliberately not part of the
+judgement — folding one in would make the index encode policy.
 
-Two shapes over one definition: `is_real_card` filters a frame, `is_real` answers
-for a single card's values. A test pins them to the same answers.
-
-[ADR 0013] has the exclusion lists and the cases that make them subtle.
+Two shapes: `is_real_card` filters a frame, `is_real` answers for one card's
+values; a test pins them together. [ADR 0013] has the exclusion lists;
 [ADR 0017] adds that a missing `layout` or `set_type` is not a card.
 """
 

@@ -1,18 +1,15 @@
 """The four numbers an eval case produces ([ADR 0020]).
 
-Pure arithmetic over a frame — no store, no encoder, no model. The whole point
-of separating these from the runner is that the load-bearing rule below can be
-tested without any of that.
+Pure arithmetic over a frame — no store, no encoder, no model — so the
+load-bearing rule below is testable on its own.
 
 **The base rate is taken over the constrained corpus, never the whole corpus.**
-That is the one mistake here that does not announce itself: dividing by the
-whole corpus yields a plausible-looking number and silently makes every lift
-under a constraint wrong. `constraint_expr` — the same function retrieval
-filters with — is what keeps the denominator and the search in step.
+Dividing by the whole corpus yields a plausible number that silently makes every
+lift under a constraint wrong, so the denominator uses `constraint_expr`, the
+same function retrieval filters with.
 
-`None` means *undefined*, and is deliberately not 0.0. An empty pool measured
-nothing; reporting a zero would put a false data point in a table whose whole
-job is to be compared across runs.
+`None` means *undefined*, never 0.0: an empty pool measured nothing, and a zero
+would be a false point in a table meant to be compared across runs.
 """
 
 from __future__ import annotations

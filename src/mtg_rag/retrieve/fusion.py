@@ -1,19 +1,17 @@
 """Combine many rankings into one candidate pool by Reciprocal Rank Fusion.
 
-Each ranking contributes `1 / (k + rank)` to every card it names, and a card's
-score is the sum over the rankings that found it. Only ordinal position is read
-([ADR 0008]): cosine scores from different channels index different registers of
-text over different subsets of the corpus, so they are not commensurable and
-must never be averaged, summed, or maxed.
+Each ranking contributes `1 / (k + rank)` to every card it names; a card's score
+is the sum over the rankings that found it. Only ordinal position is read
+([ADR 0008]) — cosine scores across channels aren't commensurable, so they are
+never averaged, summed, or maxed.
 
-Channels are weighted uniformly. That is a knowing choice, not an oversight —
-[ADR 0008] names the golden set as the instrument for deciding weights, and it
-does not exist yet. Issue #44 records the limitation this leaves in place: a
-card absent from a channel earns nothing there, and channel coverage is uneven
-for reasons unrelated to relevance.
+Channels are weighted uniformly, a knowing choice: [ADR 0008] names the golden
+set as the instrument for tuning weights. Issue #44 records what uniform
+weighting leaves in place — a card absent from a channel earns nothing there,
+and coverage is uneven for reasons unrelated to relevance.
 
-Fusion is also what dedupes. A card found by three queries is one candidate
-carrying three sources, which is what lets curation see *why* it was retrieved.
+Fusion also dedupes: a card found by three queries is one candidate with three
+sources, which is what lets curation see *why* it was retrieved.
 """
 
 from __future__ import annotations

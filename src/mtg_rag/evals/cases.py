@@ -1,16 +1,13 @@
 """The golden-set schema: parse `golden.toml` into typed cases, and refuse the
 malformed ones before a run starts.
 
-A case is `(query, predicate, one or more constraint sets)` ([ADR 0020]). Two
-constraint sets make it a constraint-interaction case; that is not a separate
-kind and must not become one.
+A case is `(query, predicate, one or more constraint sets)` ([ADR 0020]); several
+constraint sets make it a constraint-interaction case, not a separate kind.
 
-Validation is split in two because the two halves need different things.
-`load_cases` is structural and needs only the file, so it runs in the test suite
-with no corpus. `validate_against_corpus` needs the frame, and exists so a
-mistyped keyword fails in milliseconds rather than after a model load — a
-predicate nothing satisfies has a zero base rate and therefore no defined lift,
-which is a malformed case rather than a result.
+Validation is split: `load_cases` is structural and needs only the file, so it
+runs in the offline test suite. `validate_against_corpus` needs the frame and
+catches a predicate nothing satisfies — a zero base rate, so no defined lift —
+before a run spends a model load on it.
 """
 
 from __future__ import annotations

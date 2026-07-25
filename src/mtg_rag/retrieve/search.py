@@ -1,26 +1,18 @@
 """Fan a plan out across the embedding channels, one ranking per (query, channel).
 
-Each ranking is `store.search`'s rank-ordered mapping of `oracle_id` to
-distance, passed through unchanged. **Rank is the payload; the distance is
-display only.** Fusion reads ordinal position and nothing else, because cosine
-scores from different channels index different registers of text over different
-subsets of the corpus and are not commensurable ([ADR 0008]) — a distance must
-never reach a ranking decision. It is carried because we already paid to fetch
-it and it answers a question rank cannot: whether a channel's top hit was a
-confident match or the best of a bad set. `--explain` shows it.
+Each ranking is `store.search`'s rank-ordered `oracle_id`→distance mapping,
+unchanged. **Rank is the payload; distance is display only** — fusion reads
+ordinal position because cosine scores from different channels aren't
+commensurable ([ADR 0008]). The distance rides along for `--explain`, the one
+thing rank can't show: a confident top hit versus the best of a bad set.
 
-**The allowlist must be intersected with each channel's own ids before it is
-used.** The constraint filter derives its allowlist from the parquet, which
-covers every real card; a channel's collection covers only the cards that have
-text there ([ADR 0014]). Chroma raises when `ids=` names something a collection
-does not hold, so an unintersected allowlist crashes every real request rather
-than quietly over-fetching. `embed.channels.channel_frame` gives the channel's
-id set exactly — it is the function that built the collection — for a few
-milliseconds, against hundreds for asking the store.
-
-That equality holds only while the index is current with the parquet. If they
-drift, this reintroduces the very crash it prevents; `data/vectors.meta.json`
-records which corpus the index was built from, and `just embed` restores it.
+**The allowlist must be intersected with each channel's own ids first.** The
+constraint filter's allowlist covers every real card; a channel's collection
+covers only cards with text there ([ADR 0014]), and Chroma raises on an `ids=`
+it doesn't hold — so an unintersected allowlist crashes every request.
+`embed.channels.channel_frame` reproduces the channel's id set cheaply. This
+holds only while the index is current with the parquet; if they drift it
+reintroduces that crash, and `just embed` restores currency.
 """
 
 from __future__ import annotations

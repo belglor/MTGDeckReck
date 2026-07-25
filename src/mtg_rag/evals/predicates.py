@@ -1,12 +1,10 @@
 """What a predicate is, and how it becomes a polars expression.
 
-An eval case names its expected set by a property every card either has or does
-not ([ADR 0020]). This is where that name becomes something polars can evaluate.
-
-The same expression is applied twice — over the constrained corpus for a base
-rate, and over the returned pool for precision — which is what makes lift a
-ratio of like to like. Both call sites take the expression from here, so they
-cannot come to disagree about what the case meant.
+An eval case names its expected set by a property every card has or lacks
+([ADR 0020]); here that name becomes a polars expression. The same expression is
+applied twice — over the constrained corpus for a base rate, over the pool for
+precision — so both call sites take it from here and can't disagree about what
+the case meant.
 """
 
 from __future__ import annotations

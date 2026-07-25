@@ -1,15 +1,12 @@
-"""The Chroma-backed vector store: vectors keyed by `oracle_id`, and nothing
-else.
+"""The Chroma-backed vector store: vectors keyed by `oracle_id`, and nothing else.
 
-No card metadata lives here — not legality, not colour identity, not card text
-([ADR 0010]). Filters are evaluated against the corpus parquet, which is the
-single source of truth, and the surviving ids are handed to `search` as an
-allowlist. That is why a legality or price change costs nothing here: rewriting
-the parquet is the whole job.
+No card metadata lives here ([ADR 0010]) — filters run against the corpus parquet
+and hand `search` an id allowlist, which is why a legality or price change costs
+nothing here: rewriting the parquet is the whole job.
 
-One collection per channel, each rebuilt wholesale rather than reconciled
-([ADR 0015]). A card absent from a channel simply has no id in that collection,
-which is normal rather than an error ([ADR 0014]).
+One collection per channel, each rebuilt wholesale, not reconciled ([ADR 0015]).
+A card absent from a channel simply has no id there — normal, not an error
+([ADR 0014]).
 """
 
 from __future__ import annotations

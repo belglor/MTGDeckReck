@@ -1,16 +1,13 @@
 """The typed query schema the planner emits and retrieval consumes.
 
 Data only — no prompt, no model, no template. [ADR 0004] settles that a plan is
-`[{query_text, purpose}]` with the model choosing both the queries and how many,
-and that the output is a schema rather than prose *because the app has to
-execute it*: a phrasing drift becomes a validation error here instead of a
-silently wrong search.
+`[{query_text, purpose}]`, the model choosing the queries and how many, as a
+schema rather than prose *because the app executes it*: a phrasing drift becomes
+a validation error here, not a silently wrong search.
 
-`purpose` is the role a query is covering — "ramp", "theme payoff", whatever the
-format template led the model to. Retrieval carries it opaquely: it is attached
-to every candidate the query found and displayed, never parsed or checked
-against a vocabulary. It exists for curation, which uses it as the starting
-hypothesis for a card's role ([ADR 0005]).
+`purpose` is the role a query covers — "ramp", "theme payoff". Retrieval carries
+it opaquely, attaching it to each candidate the query found but never parsing it;
+it exists for curation, as the starting hypothesis for a card's role ([ADR 0005]).
 """
 
 from __future__ import annotations
