@@ -25,7 +25,7 @@ import polars as pl
 
 from mtg_rag.evals.config import GOLDEN_NAME, PredicateKind
 from mtg_rag.evals.metrics import base_rate
-from mtg_rag.evals.predicates import Predicate, predicate_expr
+from mtg_rag.evals.predicates import Predicate
 from mtg_rag.retrieve.filters import Constraints, parse_color_identity
 
 #: What a `[[case]]` table may contain. An unlisted key is a typo — most likely
@@ -108,10 +108,11 @@ def _predicate(case_id: str, table: Any) -> Predicate:
     kind, value = next(iter(entries.items()))
     if not isinstance(value, str) or not value:
         raise MalformedCaseError(f"case {case_id!r} predicate {kind!r} has no value")
-    # Builds the expression now so an unknown kind raises here, at load, rather
+    predicate = Predicate(kind=cast("PredicateKind", kind), value=value)
+    # Build the expression now so an unknown kind raises here, at load, rather
     # than once a run is already underway.
-    predicate_expr(kind, value)
-    return Predicate(kind=cast("PredicateKind", kind), value=value)
+    predicate.expr()
+    return predicate
 
 
 def _case(raw: Mapping[str, Any]) -> EvalCase:
