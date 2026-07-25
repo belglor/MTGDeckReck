@@ -24,7 +24,7 @@ from mtg_rag.embed.encoder import QwenEncoder
 from mtg_rag.ingest.config import CORPUS_NAME, PLATFORMS
 from mtg_rag.plan.query import PlannedQuery
 from mtg_rag.retrieve.config import CHANNEL_TOP_K, DEFAULT_PLATFORM, DEFAULT_POOL_SIZE
-from mtg_rag.retrieve.filters import Constraints, available_formats
+from mtg_rag.retrieve.filters import Constraints, available_formats, parse_color_identity
 from mtg_rag.retrieve.fusion import Candidate
 from mtg_rag.retrieve.pool import hydrate, retrieve
 from mtg_rag.store.chroma import open_client
@@ -97,17 +97,6 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _color_identity(colors: str | None) -> frozenset[str] | None:
-    """`--colors` as a constraint.
-
-    Absent means unconstrained; an empty string means colorless-only. Those are
-    genuinely different requests, so the flag distinguishes them.
-    """
-    if colors is None:
-        return None
-    return frozenset(colors.strip().upper())
-
-
 def _print_pool(pool: list[Candidate], rows: pl.DataFrame, *, explain: bool) -> None:
     by_id = {row["oracle_id"]: row for row in rows.iter_rows(named=True)}
     for position, candidate in enumerate(pool, start=1):
@@ -149,7 +138,7 @@ def main(argv: list[str] | None = None) -> int:
 
     constraints = Constraints(
         format_name=args.format_name,
-        color_identity=_color_identity(args.colors),
+        color_identity=parse_color_identity(args.colors),
         platform=args.platform,
     )
     channels: tuple[Channel, ...] = tuple(args.channels) if args.channels else CHANNELS

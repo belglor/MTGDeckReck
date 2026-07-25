@@ -11,9 +11,14 @@ What it is and how it works: `docs/spec.md`. Why it works that way: `docs/adr/`.
 `just ingest` builds the card corpus at `data/cards.parquet` from Scryfall's bulk
 snapshot; `just embed` builds the vector index at `data/vectors/` (one Chroma
 collection per channel) plus its `data/vectors.meta.json` sidecar; `just retrieve
-"a query"` searches that index and prints a fused candidate pool; `just notebook`
-opens JupyterLab. The build steps are manual — there is no scheduled refresh.
-`data/` is gitignored and fully reproducible.
+"a query"` searches that index and prints a fused candidate pool; `just eval`
+runs the golden set against that index and reports retrieval lift; `just
+notebook` opens JupyterLab. The build steps are manual — there is no scheduled
+refresh. `data/` is gitignored and fully reproducible.
+
+`just eval` needs a built corpus and index, so it stays out of `just check` and
+out of CI. Its numbers are a regression signal, never a gate, and it never fails
+a run — see [ADR 0020](docs/adr/0020-eval-case-is-a-corpus-predicate.md).
 
 The justfile sets `positional-arguments` so recipe arguments arrive as `"$@"`
 rather than being re-split on whitespace — `just retrieve "graveyard recursion"`

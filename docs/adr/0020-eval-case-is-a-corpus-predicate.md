@@ -25,24 +25,28 @@ So: what is an eval case, and what number does it produce?
 
 Chosen option: "A corpus predicate scored by lift", because it removes card curation from the instrument and produces the only number comparable across cases, constraints, and corpus refreshes.
 
-**An eval case is `(query, predicate, one or more constraint sets)`.** The predicate *is* the ground truth, and it is evaluated twice — there is no separate list of cards that should have been retrieved:
+**An eval case is `(query, predicate, one or more constraint sets)`.** A *predicate* is a yes/no test each card either passes or fails, and it *is* the ground truth — there is no separate list of cards that should have been retrieved. It is evaluated twice:
 
 | Evaluated over | Gives |
 |---|---|
 | the constrained corpus, `frame.filter(constraint_expr(constraints, frame))` | `base_rate` — how common the property is among cards retrieval was *allowed* to return |
-| the returned pool | `precision@k` — how common it is among cards retrieval *chose* |
+| the returned pool | `precision@k` — how common the property is among cards retrieval *chose* |
 
 `lift = precision@k / base_rate`. The denominator is the constrained corpus and not the whole one; that is load-bearing, and the wrong version fails plausibly rather than loudly.
+
+A case may carry more than one constraint set, when the question is what a constraint does to the theme. Each set is scored into its own lift, and comparing them gives **retention**: a later run's lift over the first run's — whether the theme survived the tighter constraint.
 
 A case carries its own `PlannedQuery` list, so a pool is a deterministic function of (corpus, index, query, constraints). Whether the planner itself should be evaluated is a separate question this does not answer.
 
 This **extends** ADRs 0006 and 0011 and supersedes neither; neither file is edited. 0006's decision stands, and a predicate is a stricter reading of "mechanically determined" than a typed card list. What it revises is 0006's *illustration*, and with it recall@k, which has nothing to divide by once the expectation is a predicate rather than a closed set. 0011's two modes carry over: they are about how a number is read, not which number it is.
 
-### Two predicate kinds, and they are not equally solid
+### Two kinds of predicate: a hard floor and a soft target
 
-**Mechanic predicates** — `keywords ∋ "Madness"` — read Scryfall's own structured field. Whether a card has madness is a matter of fact, closed and machine-checkable, and nobody has to curate a card list or know any Magic to maintain one.
+The golden set uses both, and neither is airtight — deliberately. A strict eval, a fixed card list, would be airtight and would encode the author's taste, the thing [ADR 0006](0006-eval-measures-retrieval-recall.md) refused. Going looser trades solidity for a signal that is only qualitative, which the eval can afford because it reports rather than gates (below).
 
-**Theme predicates** — `oracle_text` matching `(?i)graveyard` — are **a proxy, and this ADR would rather say so than imply otherwise.** The predicate also matches "exile target card from a graveyard", which is not a graveyard-theme card. It is admissible because it is a *fixed* ruler compared to itself across runs ([ADR 0011](0011-evaluation-scope-and-baseline-semantics.md)), and a biased ruler still detects movement. It would be inadmissible as an absolute score, and none is claimed.
+**Mechanic predicates** — `keywords ∋ "Madness"` — read Scryfall's own structured field, so membership is a matter of fact needing no card list and no Magic knowledge. These are the floor: if retrieval cannot surface the cards that carry the keyword, something is badly broken. A tripwire, not the interesting number.
+
+**Theme predicates** — `oracle_text` matching `(?i)graveyard` — are the hard part, and the point. No keyword captures a graveyard *theme*, so this is a proxy: it also matches rules text that only mentions a graveyard in passing. It is imperfect by admission, and still the best matter-of-fact stand-in for the flavour-and-colour requests the recommender exists to serve — approximating those is the thing worth trying. Admissible as a *fixed* ruler compared to itself across runs ([ADR 0011](0011-evaluation-scope-and-baseline-semantics.md)), never as an absolute score.
 
 ### Lift, not precision, because precision is incomparable
 
@@ -51,12 +55,13 @@ Measured against `data/cards.parquet` (34,201 real cards, `corpus_updated_at` 20
 | Query | Constraints | precision@25 | base rate | lift |
 |---|---|---|---|---|
 | "cards that connive" | commander | 36.0% | 0.2% | **228×** |
-| "graveyard recursion" | commander | 72.0% | 14.0% | **5.2×** |
-| "spooky graveyard theme" | commander, `colors=W` | 40.0% | 10.1% | **4.0×** |
+| "graveyard recursion" | commander | 72.0% | 13.95% | **5.16×** |
+| " | commander, `colors=W` | 52.0% | 10.06% | **5.17×** |
+| " | commander, `colors=B` | 64.0% | 19.68% | **3.25×** |
 
-36% reads as a failure and is a 228× enrichment. Precision then fell 72% → 40% when white was forced, which reads as a regression and is not one: the constrained corpus is simply thinner in graveyard cards, and the pool came back full of white gravedigging. Lift barely moved. Precision is incomparable between cases, between constraint sets, and across corpus refreshes; lift is comparable on all three.
+36% reads as a failure and is a 228× enrichment. Then hold the query fixed and tighten the constraint: forcing white drops precision by twenty points and moves lift by 0.01, because the constrained corpus is simply thinner in graveyard cards. Precision is incomparable between cases, between constraint sets, and across corpus refreshes; lift is comparable on all three.
 
-**Constraint interaction is therefore lift retention**: the tighter run's lift over the looser one's, 0.77 above. That is the mechanical form of "the theme survived the constraint", and it asserts nothing about which cards should have survived it.
+Retention reads off those rows — 1.00 for white, 0.63 for black. It asserts nothing about which cards should have survived, and below 1.0 is not automatically a regression: black's base rate is already 19.68%, so there is less headroom to enrich, not worse retrieval.
 
 ### The eval reports; it never fails
 

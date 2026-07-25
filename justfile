@@ -35,3 +35,8 @@ retrieve *args:
 
 notebook:
     uv run jupyter lab
+
+# Run the golden set and report retrieval lift.
+# e.g. just eval --case graveyard -k 50
+eval *args:
+    uv run python -m mtg_rag.evals "$@"
