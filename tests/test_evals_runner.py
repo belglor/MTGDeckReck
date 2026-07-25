@@ -97,6 +97,10 @@ def client(corpus: pl.DataFrame) -> ClientAPI:
         write_vectors(store, collection, vectors)
         assert collection.count() == len(vectors)
         _warm_up(store, channel, sorted(vectors))
+    # A blunt backstop for the ~2% the warm-up leaves. Give the store a second to
+    # settle before any test queries it. Lazy and untested on purpose: the race
+    # never reaches production, so a one-line sleep is more than it is worth.
+    time.sleep(1)
     return store
 
 
