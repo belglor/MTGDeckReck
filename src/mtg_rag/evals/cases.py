@@ -152,7 +152,7 @@ def load_cases(path: Path) -> tuple[EvalCase, ...]:
 
 
 def validate_against_corpus(cases: Iterable[EvalCase], frame: pl.DataFrame) -> None:
-    """Refuse any case whose predicate no allowed card satisfies.
+    """Reject a case when no allowed card matches its predicate.
 
     A zero base rate makes lift undefined, so such a case can only ever report
     nothing. Far more often it means a typo — `"Madnes"`, or a lowercase
