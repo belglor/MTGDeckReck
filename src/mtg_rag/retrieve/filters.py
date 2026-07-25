@@ -2,14 +2,13 @@
 return.
 
 Format legality, color identity, and platform are deterministic metadata filters
-specified by the user, never inferred from the query or policed by an LLM
-([ADR 0001]). They are evaluated against the corpus parquet — the single source
-of truth — and the surviving ids constrain the vector search ([ADR 0010]). No
-vector or store is touched here.
+set by the user, never inferred from the query or policed by an LLM ([ADR 0001]).
+They run against the corpus parquet, and the surviving ids constrain the vector
+search ([ADR 0010]) — no vector or store is touched here.
 
-Each constraint is a `pl.Expr` so they compose into one `.filter()` pass,
-alongside the structural predicate `is_real_card` ([ADR 0013]) — which this
-applies itself rather than trusting every caller to remember.
+Each constraint is a `pl.Expr`, so they compose into one `.filter()` pass
+alongside the structural predicate `is_real_card` ([ADR 0013]), which this applies
+itself rather than trusting each caller to remember.
 """
 
 from __future__ import annotations

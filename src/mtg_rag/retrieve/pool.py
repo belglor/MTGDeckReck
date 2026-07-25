@@ -1,13 +1,10 @@
 """The whole retrieval path: constraints → allowlist → fan-out → fusion → cards.
 
-This is where the two halves of `retrieve/` meet. The hard constraints produce
-the ids a search may return ([ADR 0001]), the fan-out asks each channel, fusion
-collapses the rankings into one pool ([ADR 0008]), and hydration reads the cards
-back from the parquet — never from the store, which holds vectors and nothing
-else ([ADR 0010]).
-
-No LLM is called here. The plan arrives as data and the pool leaves as data;
-what produces the one and consumes the other are separate concerns.
+Where the two halves of `retrieve/` meet: hard constraints produce the ids a
+search may return ([ADR 0001]), the fan-out asks each channel, fusion collapses
+the rankings into one pool ([ADR 0008]), and hydration reads the cards back from
+the parquet — never the store, which holds vectors and nothing else ([ADR 0010]).
+No LLM here: the plan arrives as data and the pool leaves as data.
 """
 
 from __future__ import annotations

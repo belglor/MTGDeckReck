@@ -1,14 +1,12 @@
-"""Embedding configuration.
+"""Embedding configuration — constants only.
 
-Constants only. The channel vocabulary lives here rather than beside the
-composition logic so `channels.py` holds behavior and nothing else, and so the
-store and the CLI can name a channel without importing the composition module.
+The channel vocabulary lives here, not beside the composition logic, so
+`channels.py` holds behavior alone and the store and CLI can name a channel
+without importing it.
 
-The three channels are settled in [ADR 0007]: oracle text (with the card name
-folded in), flavor text, and type line. They are embedded separately because
-each is a different register of language — terse rules prose, evocative
-narrative, and a controlled vocabulary — and averaging them into one vector
-lets the longest dominate and blurs the signal that makes each useful.
+The three channels are settled in [ADR 0007]: oracle text (card name folded in),
+flavor text, type line — embedded separately because each is a different register
+of language, and averaging them into one vector lets the longest dominate.
 """
 
 from __future__ import annotations

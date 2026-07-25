@@ -1,18 +1,15 @@
 """Project a raw Scryfall card object into a `CardRecord`.
 
-The projection here is deliberately narrow: the fields the spec actually uses,
-flattened, one row per card. Storage format and identity key are settled in
-[ADR 0009] and [ADR 0010]; the constraint that shapes this module most is
-[ADR 0002] — one card is one record, so a multi-face card's faces are joined
-rather than split across rows.
+Deliberately narrow: the fields the spec uses, flattened, one row per card.
+Storage and identity key are [ADR 0009] and [ADR 0010]; the shaping constraint is
+[ADR 0002] — one card is one record, so a multi-face card's faces are joined, not
+split across rows.
 
-Two preprocessing passes run underneath every field read: Unicode NFC
-normalization on text, and lowercasing on the fields used for exact-match
-filtering. Scryfall's export happens to already be consistent on both axes,
-but nothing about the API guarantees it, and the failure mode of trusting it
-is silent — a decomposed accent makes two copies of the same name embed
-differently, and a `Legal` slipping in among `legal` values would drop a
-card out of [ADR 0001]'s filters without an error anywhere.
+Two passes run under every field read: NFC normalization on text, and lowercasing
+on the exact-match filter fields. Scryfall is already consistent on both, but the
+failure mode of trusting it is silent — a decomposed accent embeds the same name
+two ways, and a `Legal` among `legal` values would drop a card from [ADR 0001]'s
+filters with no error anywhere.
 """
 
 from __future__ import annotations

@@ -1,19 +1,16 @@
 """Run the golden set through a retriever and build a report.
 
 The runner orchestrates and scores; it is handed a `Retriever` and never touches
-the store itself. `chroma_retriever` is the production one — the real retrieval
-path, the thing that ships, not a copy. The eval supplies the `PlannedQuery`
-list, so a pool is a deterministic function of (corpus, index, query,
-constraints); the planner is out of the loop by construction ([ADR 0020]).
+the store. `chroma_retriever` is the production one — the real retrieval path,
+not a copy. Cases carry their own `PlannedQuery` list, so a pool is a
+deterministic function of (corpus, index, query, constraints); the planner is out
+of the loop ([ADR 0020]).
 
-**Nothing here fails a run.** A poor number is the output, not an error
-([ADR 0011]). The one thing that does raise is a malformed case, and that is
-checked up front by `cases.validate_against_corpus` before the model loads.
-
-The report carries a provenance stamp because [ADR 0011]'s baseline-reset rule
-is unusable without it: a change to the model, the channel set, or the dimension
-opens a new epoch rather than a comparison, and a number with no record of which
-geometry produced it cannot be placed in either.
+**Nothing here fails a run** — a poor number is the output, not an error
+([ADR 0011]); only a malformed case raises, caught up front by
+`cases.validate_against_corpus`. The report carries a provenance stamp because
+[ADR 0011]'s baseline-reset rule is unusable without one: a number with no record
+of the geometry that produced it can't be compared to anything.
 """
 
 from __future__ import annotations

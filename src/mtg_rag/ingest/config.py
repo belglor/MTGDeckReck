@@ -1,15 +1,11 @@
-"""Ingestion configuration.
+"""Ingestion configuration — values only.
 
-Values that named a URL, a file name, or a join separator used to be defined
-wherever they were first used — `scryfall.py`, `normalize.py`, `__main__.py` —
-which meant a change to any of them was a grep across the package. They live
-here instead, so it's a one-line diff.
+URLs, file names, and join separators live here rather than wherever they were
+first used, so changing one is a one-line diff, not a grep across the package.
 
-`USER_AGENT` is the one value read from the environment rather than hardcoded:
-Scryfall asks API clients for real contact info in it, and a maintainer's
-contact details don't belong committed to source, even as a public GitHub URL.
-Set `SCRYFALL_USER_AGENT` — in the process environment or in a local `.env`
-(see `.env.example`) — to send one; the default carries none.
+`USER_AGENT` is the exception read from the environment: Scryfall wants real
+contact info in it, which doesn't belong in source. Set `SCRYFALL_USER_AGENT`
+(process env or a local `.env`, see `.env.example`); the default carries none.
 """
 
 from __future__ import annotations

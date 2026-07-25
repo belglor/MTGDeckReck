@@ -1,33 +1,19 @@
 """Collapse a card's many printings into the one record the corpus stores.
 
-Ingestion reads `default_cards`, which ships one object per printing ([ADR 0016]),
-so a card arrives once per time it was printed — 116,138 objects for 38,320
-cards. [ADR 0002] says one card is one record, and this module is where that
-holds: many printings in, exactly one record per `oracle_id` out.
+Ingestion reads `default_cards`, one object per printing ([ADR 0016]); this is
+where [ADR 0002]'s one-card-one-record holds — many printings in, one record per
+`oracle_id` out. Oracle text, type line and legality don't vary across a card's
+printings, so the choice only bites on the fields that do.
 
-Most fields make the choice moot. Measured across every printing, `oracle_text`,
-`type_line` and legality vary on **zero** cards — Scryfall applies current oracle
-text to every printing, and legality is a property of the card rather than the
-cardboard. What genuinely differs is `rarity` (3,316 cards), `flavor_text` (3,550
-carry more than one), and the set, release date, platforms and prices, which
-differ on nearly every reprint.
+A **representative printing** (the most recent) supplies every single-valued
+field, so a row is one physical card, not a composite of several. Two fields are
+taken differently: **flavor text** from the most recent printing that *has* any
+(the newest printing is often a reprint carrying none, and flavor is already the
+sparsest channel); **platforms** as the union across printings, the only level at
+which "can I play this on Arena?" has an answer ([ADR 0018]).
 
-A **representative printing** — the most recent — supplies every single-valued
-field, so a row describes one physical card rather than a composite of several.
-Two fields are deliberately not taken from it:
-
-**Flavor text** comes from the most recent printing that actually has any. Taking
-it from the representative printing would strip flavor text from 1,804 cards,
-because a card's newest printing is so often a Commander-deck or promo reprint
-that carries none, and the flavor channel is the sparsest of the three to begin
-with.
-
-**Platforms** are the union across every printing, because that is the only level
-at which "can I play this card on Arena?" has a correct answer ([ADR 0018]). No
-single printing knows.
-
-The fold is incremental rather than a group-by: only the per-card aggregate is
-held, never the 116,138 records that produced it.
+The fold is incremental — only the per-card aggregate is held, never every
+printing that produced it.
 """
 
 from __future__ import annotations
