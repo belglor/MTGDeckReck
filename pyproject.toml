@@ -19,6 +19,13 @@ dependencies = [
     # 5.0 is the floor for encode_query()/encode_document(), the asymmetric prompts.
     "sentence-transformers>=5.0",
     "torch",
+    # The planner's instruct model runs on transformers directly
+    # (AutoModelForCausalLM + AutoTokenizer), so it is an explicit dependency,
+    # not just the transitive one sentence-transformers pulls in ([ADR 0021]).
+    # The binding floor is the `dtype=` from_pretrained kwarg (the `torch_dtype`
+    # rename, ~4.56); 4.57 sits safely past it. Qwen3 itself has been supported
+    # since 4.51.
+    "transformers>=4.57",
 ]
 
 [build-system]

@@ -90,6 +90,12 @@ vectors. A card with no text in a channel simply has no entry there.
 query with the same model, so it is a core dependency. The first `just embed`
 also downloads ~1.2 GB of model weights.
 
+The planner ([ADR 0021](docs/adr/0021-planner-local-llm-client.md)) adds a
+second local model in the same stack: `just setup` installs `transformers`, and
+the planner's first run will download its instruct-model weights
+(`Qwen/Qwen3-1.7B`). Like the embedder it runs in-process — no server, no API
+key.
+
 `just embed --channel flavor` rebuilds one channel while iterating; a partial run
 leaves the sidecar alone, since it cannot establish that the whole index is
 current. The index is rebuilt wholesale rather than reconciled card by card.
