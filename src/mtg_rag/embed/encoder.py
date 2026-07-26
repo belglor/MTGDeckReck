@@ -12,19 +12,17 @@ from collections.abc import Sequence
 from typing import Any, Protocol, cast
 
 import numpy as np
-import torch
 from numpy.typing import NDArray
 from sentence_transformers import SentenceTransformer
 
+from mtg_rag.device import resolve_torch_dtype
+from mtg_rag.device_config import ATTENTION_IMPLEMENTATION
 from mtg_rag.embed.config import (
-    ATTENTION_IMPLEMENTATION,
-    BF16_MIN_COMPUTE_MAJOR,
     DOCUMENT_BATCH_SIZE,
     EMBEDDING_DIM,
     MAX_SEQ_LENGTH,
     MODEL_ID,
     QUERY_BATCH_SIZE,
-    TORCH_DTYPE_BY_CAPABILITY,
 )
 
 
@@ -47,37 +45,6 @@ class Encoder(Protocol):
     def encode_queries(
         self, texts: Sequence[str], *, batch_size: int = QUERY_BATCH_SIZE
     ) -> NDArray[np.float32]: ...
-
-
-def detect_capability(torch: Any) -> str:
-    """Which compute tier `torch` reports for this machine.
-
-    Takes the module as an argument rather than reading the import directly, so
-    every branch is testable on one machine: a test fakes Ampere, Turing, MPS
-    and CPU in turn without owning any of that hardware.
-
-    Ordered by preference: natively bf16-capable CUDA, then any CUDA, then
-    Apple's MPS, then CPU as the floor.
-
-    The bf16 tier is decided on compute capability rather than on
-    `torch.cuda.is_bf16_supported()`, which answers True on Turing as well —
-    it counts emulation. Emulated bf16 runs, but without a tensor-core path it
-    is slower than the float16 those cards do accelerate, so believing that
-    call would quietly pick the worse dtype on exactly the hardware this
-    project targets.
-    """
-    if torch.cuda.is_available():
-        major, _minor = torch.cuda.get_device_capability()
-        return "cuda-bf16" if major >= BF16_MIN_COMPUTE_MAJOR else "cuda"
-    mps = getattr(torch.backends, "mps", None)
-    if mps is not None and mps.is_available():
-        return "mps"
-    return "cpu"
-
-
-def _resolve_torch_dtype() -> str:
-    """The widest compute dtype this machine actually supports."""
-    return TORCH_DTYPE_BY_CAPABILITY[detect_capability(torch)]
 
 
 class QwenEncoder:
@@ -104,7 +71,7 @@ class QwenEncoder:
             MODEL_ID,
             device=device,
             model_kwargs={
-                "torch_dtype": _resolve_torch_dtype(),
+                "torch_dtype": resolve_torch_dtype(),
                 "attn_implementation": ATTENTION_IMPLEMENTATION,
             },
         )
