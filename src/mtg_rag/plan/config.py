@@ -17,6 +17,12 @@ from pathlib import Path
 #: is installed.
 TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "templates"
 
+#: File suffix for a format template: `<format>.md`. One fact shared by the
+#: planner (which builds the path for a `format_name`) and the plan CLI (which
+#: globs the directory to list the formats it will accept), so it lives here
+#: rather than as a literal in each.
+TEMPLATE_SUFFIX = ".md"
+
 #: How many times the planner re-asks the model after malformed output before it
 #: raises ([ADR 0022]). Deliberately one: a single retry absorbs a stochastic
 #: formatting slip, while a second would start hiding a model that is genuinely

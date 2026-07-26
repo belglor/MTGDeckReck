@@ -33,6 +33,11 @@ embed *args:
 retrieve *args:
     uv run python -m mtg_rag.retrieve "$@"
 
+# Plan the searches for a deck request and print them (no corpus/index needed).
+# e.g. just plan "a spooky graveyard deck that mills itself" --format commander
+plan *args:
+    uv run python -m mtg_rag.plan "$@"
+
 notebook:
     uv run jupyter lab
 
