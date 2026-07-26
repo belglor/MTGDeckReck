@@ -1,5 +1,5 @@
 ---
-status: "proposed"
+status: "accepted"
 date: 2026-07-26
 ---
 
@@ -32,5 +32,3 @@ This is a "not yet", not a "no": it records that the planner — the first call 
 - Good, because the planner's template consumption is the simplest possible — read one file — which is the easiest thing to reason about and to fake behind the `LLMClient` seam in tests
 - Bad, because the planner's prompt carries the Framing and Workflow sections meant partly for curation, spending a few irrelevant tokens and risking the model weighting advice it should ignore; accepted while the file is small, and it is the signal to revisit
 - Bad, because "whole file" couples the planner's prompt to the template's total size, so a future large template would push token and cross-talk cost up before anyone decides to split — mitigated because template growth is a deliberate, hand-authored, reviewable change ([ADR 0003](0003-sectioned-format-templates.md))
-
-Note that this decision presumes `commander.md` is authored — it is currently empty, and the planner implementation depends on the content landing (a separate issue). This ADR records how the file is *consumed*, not what it *says*.
