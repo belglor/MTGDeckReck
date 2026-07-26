@@ -21,7 +21,7 @@ rest run per request.
 | **Ingest** | Downloads Scryfall's card data into a local table | yes |
 | **Embed** | Turns each card's text into vectors for semantic search | yes |
 | **Retrieve** | Filters to legal, in-color cards, then searches for candidates | yes |
-| **Plan** | Asks an LLM what to search for, given the deck request | no |
+| **Plan** | Asks an LLM what to search for, given the deck request | yes |
 | **Curate** | Asks an LLM to group the candidates by role and explain the picks | no |
 
 What each stage does and why: [`docs/spec.md`](docs/spec.md). The reasoning behind
@@ -107,8 +107,9 @@ the old one.
 
 ## Retrieval
 
-`just retrieve` searches the index and prints a candidate pool. It exists so the
-retrieval path is usable before the planner that will eventually drive it:
+`just retrieve` searches the index and prints a candidate pool. You type the
+queries by hand here; `just plan` drives the same path from a plain-English theme
+(see [Plan](#plan)):
 
 ```sh
 just retrieve "spooky graveyard recursion" "self-mill enablers" \
@@ -136,24 +137,33 @@ honestly unsatisfiable.
 
 ## Plan
 
-`just plan` runs the planner alone: a plain-English theme in, the searches it
-would run out, each with the role it is meant to cover. It is the counterpart to
-`just retrieve` — that CLI types the queries by hand; this one asks the model for
-them.
+`just plan` runs the whole Plan → Retrieve path: a plain-English theme in, a
+fused candidate pool out. It asks the model what to search for, then runs those
+searches — where `just retrieve` has you type the queries by hand.
 
 ```sh
-just plan "a spooky graveyard deck that mills itself" --format commander
+just plan "a spooky graveyard deck that mills itself" --colors B
 ```
 
 The planner reads the format's template and asks a local instruct model
 ([ADR 0021](docs/adr/0021-planner-local-llm-client.md)) for a list of queries; a
 malformed answer is re-asked once, then raises
-([ADR 0022](docs/adr/0022-planner-structured-output.md)). It does not
-touch the corpus or the vector index, so there is nothing to build first — but
-the first run downloads the instruct-model weights. `--format` defaults to
-`commander`; the accepted values are the templates in `src/mtg_rag/templates/`.
+([ADR 0022](docs/adr/0022-planner-structured-output.md)). Those queries then run
+through the same retrieval as `just retrieve`, so this path needs a built corpus
+and index, and the first run also downloads the instruct-model weights.
 
-Feeding these queries into retrieval end to end is the next stage, not this CLI.
+The hard constraints are yours, not the model's: `--colors` and `--platform`
+filter the pool exactly as in `just retrieve`, and the planner never sees them
+([ADR 0001](docs/adr/0001-legality-color-as-filters-not-prompts.md)). `--format`
+defaults to `commander`; the accepted values are the templates in
+`src/mtg_rag/templates/`.
+
+`--plan-only` stops after the queries — just the plan, each with the role it
+covers, and no corpus or index required:
+
+```sh
+just plan "elfball ramp into a big finisher" --plan-only
+```
 
 ## Evals
 
