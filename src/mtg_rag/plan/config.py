@@ -1,11 +1,29 @@
-"""Planner generation configuration — constants only.
+"""Planner configuration — constants only.
 
-The instruct model id and the knobs its `.generate()` call reads. `client.py`
-holds the loading and generation behavior; the values it passes live here, so
-retuning the model is an edit to data rather than to logic ([ADR 0021]).
+The instruct model id and the knobs its `.generate()` call reads, plus where the
+format templates live and how hard the planner retries. `client.py` holds the
+loading and generation behavior and `planner.py` the orchestration; the values
+they pass live here, so retuning the model or the retry policy is an edit to data
+rather than to logic ([ADR 0021], [ADR 0022]).
 """
 
 from __future__ import annotations
+
+from pathlib import Path
+
+#: Where the format templates live: `src/mtg_rag/templates/`, one `<format>.md`
+#: per format. The planner reads the whole file for its `format_name` ([ADR
+#: 0023]); resolved from this module's location so it holds wherever the package
+#: is installed.
+TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "templates"
+
+#: How many times the planner re-asks the model after malformed output before it
+#: raises ([ADR 0022]). Deliberately one: a single retry absorbs a stochastic
+#: formatting slip, while a second would start hiding a model that is genuinely
+#: unreliable at the task instead of surfacing it to be swapped behind the
+#: `LLMClient` seam. A named constant, not a literal in the call, so raising the
+#: cap is a deliberate act rather than a drift.
+MAX_PLAN_RETRIES = 1
 
 #: The planner's instruct model ([ADR 0021]): Qwen3-1.7B, the post-trained
 #: (chat) checkpoint — not `Qwen/Qwen3-1.7B-Base`, which is not instruction
