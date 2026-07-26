@@ -33,3 +33,4 @@ This directory records the significant architectural decisions for this project 
 - [0020](0020-eval-case-is-a-corpus-predicate.md) — An eval case is a corpus predicate measured as lift, not a list of expected cards
 - [0021](0021-planner-local-llm-client.md) — The planner runs a local instruct model behind an `LLMClient` seam; Qwen3 instruct is the provisional pick
 - [0022](0022-planner-structured-output.md) — The planner validates structured output at the boundary; one retry, then raise, never degrade
+- [0023](0023-planner-consumes-whole-template.md) — The planner is handed the whole format template; selective section-loading stays deferred
