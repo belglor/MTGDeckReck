@@ -37,8 +37,8 @@ Focus: overall code structure; the querying system is the main feature.
 | **Embeddings** | three channels — oracle text (card name folded in), flavor text, type line (incl. creature types) | built |
 | **Vector store** | local Chroma, ~34k cards, no infrastructure needed | built |
 | **Retrieval** | metadata filters (format legality, color identity) + per-channel semantic search + RRF fusion into one candidate pool | built |
-| **Planner call** | structured output, schema `[{query_text, purpose}]` | to build |
-| **Format template** | `commander.md` | to build |
+| **Planner call** | structured output, schema `[{query_text, purpose}]`; `just plan` drives retrieval end to end | built |
+| **Format template** | `commander.md` | built |
 | **Curation call** | role grouping + theme-fit explanations | to build |
 | **UI** | format picker, color-identity picker, free-text theme input | to build |
 | **Evals** | golden set of predicate-based cases + `just eval` lift report | built |

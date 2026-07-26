@@ -25,8 +25,8 @@ from mtg_rag.ingest.config import CORPUS_NAME, PLATFORMS
 from mtg_rag.plan.query import PlannedQuery
 from mtg_rag.retrieve.config import CHANNEL_TOP_K, DEFAULT_PLATFORM, DEFAULT_POOL_SIZE
 from mtg_rag.retrieve.filters import Constraints, available_formats, parse_color_identity
-from mtg_rag.retrieve.fusion import Candidate
 from mtg_rag.retrieve.pool import hydrate, retrieve
+from mtg_rag.retrieve.render import print_pool
 from mtg_rag.store.chroma import open_client
 
 #: What `--purpose` says when the caller does not. A planner supplies a real
@@ -97,25 +97,6 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _print_pool(pool: list[Candidate], rows: pl.DataFrame, *, explain: bool) -> None:
-    by_id = {row["oracle_id"]: row for row in rows.iter_rows(named=True)}
-    for position, candidate in enumerate(pool, start=1):
-        card = by_id.get(candidate.oracle_id)
-        if card is None:  # pragma: no cover - hydration drops unknown ids
-            continue
-        cost = card["mana_cost"] or ""
-        print(f"{position:>3}. {card['name']}  {cost}")
-        print(f"     {card['type_line']}   (score {candidate.score:.4f})")
-        if explain:
-            for source in candidate.sources:
-                # Distance is shown, never ranked on: it says whether this
-                # channel was confident, which rank alone cannot ([ADR 0008]).
-                print(
-                    f"       - {source.channel:<7} rank {source.rank:<3} "
-                    f"dist {source.distance:.3f}  {source.purpose}"
-                )
-
-
 def main(argv: list[str] | None = None) -> int:
     use_utf8_stdout()
     args = _parse_args(argv)
@@ -172,7 +153,7 @@ def main(argv: list[str] | None = None) -> int:
 
     rows = hydrate(frame, [candidate.oracle_id for candidate in pool])
     print(f"{len(pool)} candidates in {elapsed * 1000:.0f} ms\n")
-    _print_pool(pool, rows, explain=args.explain)
+    print_pool(pool, rows, explain=args.explain)
     return 0
 
 
