@@ -16,7 +16,7 @@ no curation can rescue, [ADR 0004]).
 from __future__ import annotations
 
 from mtg_rag.plan.client import LLMClient
-from mtg_rag.plan.config import MAX_PLAN_RETRIES, TEMPLATE_DIR
+from mtg_rag.plan.config import MAX_PLAN_RETRIES, TEMPLATE_DIR, TEMPLATE_SUFFIX
 from mtg_rag.plan.parse import MalformedPlanError, parse_plan
 from mtg_rag.plan.prompt import build_messages
 from mtg_rag.plan.query import PlannedQuery
@@ -30,7 +30,7 @@ def plan(request: str, *, format_name: str, client: LLMClient) -> list[PlannedQu
     malformed output the client is re-asked once (`MAX_PLAN_RETRIES`); a second
     malformed reply raises `MalformedPlanError` ([ADR 0022]).
     """
-    template = (TEMPLATE_DIR / f"{format_name}.md").read_text(encoding="utf-8")
+    template = (TEMPLATE_DIR / f"{format_name}{TEMPLATE_SUFFIX}").read_text(encoding="utf-8")
     messages = build_messages(request, template)
 
     # One initial attempt, then up to `MAX_PLAN_RETRIES` re-asks. The final

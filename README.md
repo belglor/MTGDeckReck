@@ -134,6 +134,27 @@ Other flags: `--platform`, `--channel` (repeatable, to see one channel alone),
 An empty pool is a valid answer — a colorless deck asking for black removal is
 honestly unsatisfiable.
 
+## Plan
+
+`just plan` runs the planner alone: a plain-English theme in, the searches it
+would run out, each with the role it is meant to cover. It is the counterpart to
+`just retrieve` — that CLI types the queries by hand; this one asks the model for
+them.
+
+```sh
+just plan "a spooky graveyard deck that mills itself" --format commander
+```
+
+The planner reads the format's template and asks a local instruct model
+([ADR 0021](docs/adr/0021-planner-local-llm-client.md)) for a list of queries; a
+malformed answer is re-asked once, then raises
+([ADR 0022](docs/adr/0022-planner-structured-output.md)). It does not
+touch the corpus or the vector index, so there is nothing to build first — but
+the first run downloads the instruct-model weights. `--format` defaults to
+`commander`; the accepted values are the templates in `src/mtg_rag/templates/`.
+
+Feeding these queries into retrieval end to end is the next stage, not this CLI.
+
 ## Evals
 
 `just eval` runs the golden set and prints how much richer the retrieved pool is
