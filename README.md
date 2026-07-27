@@ -22,7 +22,7 @@ rest run per request.
 | **Embed** | Turns each card's text into vectors for semantic search | yes |
 | **Retrieve** | Filters to legal, in-color cards, then searches for candidates | yes |
 | **Plan** | Asks an LLM what to search for, given the deck request | yes |
-| **Curate** | Asks an LLM to group the candidates by role and explain the picks | no |
+| **Curate** | Asks an LLM to group the candidates by role and explain the picks | yes |
 
 What each stage does and why: [`docs/spec.md`](docs/spec.md). The reasoning behind
 individual decisions: [`docs/adr/`](docs/adr/).
@@ -109,7 +109,7 @@ the old one.
 
 `just retrieve` searches the index and prints a candidate pool. You type the
 queries by hand here; `just plan` drives the same path from a plain-English theme
-(see [Plan](#plan)):
+(see [Recommending a deck](#recommending-a-deck)):
 
 ```sh
 just retrieve "spooky graveyard recursion" "self-mill enablers" \
@@ -135,34 +135,51 @@ Other flags: `--platform`, `--channel` (repeatable, to see one channel alone),
 An empty pool is a valid answer — a colorless deck asking for black removal is
 honestly unsatisfiable.
 
-## Plan
+## Recommending a deck
 
-`just plan` runs the whole Plan → Retrieve path: a plain-English theme in, a
-fused candidate pool out. It asks the model what to search for, then runs those
-searches — where `just retrieve` has you type the queries by hand.
+`just plan` runs the whole pipeline — Plan → Retrieve → Curate. A plain-English
+theme goes in; a list of cards comes out, grouped by the job each does, with a
+sentence on why it fits.
 
 ```sh
 just plan "a spooky graveyard deck that mills itself" --colors B
 ```
 
-The planner reads the format's template and asks a local instruct model
-([ADR 0021](docs/adr/0021-planner-local-llm-client.md)) for a list of queries; a
-malformed answer is re-asked once, then raises
-([ADR 0022](docs/adr/0022-planner-structured-output.md)). Those queries then run
-through the same retrieval as `just retrieve`, so this path needs a built corpus
-and index, and the first run also downloads the instruct-model weights.
+Three stages, in order:
+
+1. **Plan.** The planner reads the format's template and asks a local instruct
+   model ([ADR 0021](docs/adr/0021-planner-local-llm-client.md)) for a list of
+   queries, each with the role it covers.
+2. **Retrieve.** Those queries run through the same path as `just retrieve`,
+   producing one fused candidate pool.
+3. **Curate.** The pool goes back to the same model, which picks the cards that
+   belong in the deck and groups them by role
+   ([ADR 0005](docs/adr/0005-curation-groups-by-role.md)). Curation chooses only
+   from the pool, so the recommendation cannot name a card retrieval filtered
+   out — and it argues theme fit rather than scoring it, because a claim you can
+   check is worth more than a number you cannot.
+
+Both model calls re-ask once on a malformed answer, then stop with a message
+rather than handing back a partial result
+([ADR 0022](docs/adr/0022-planner-structured-output.md),
+[ADR 0024](docs/adr/0024-curation-structured-output.md)).
+
+This path needs a built corpus and index, and the first run also downloads the
+instruct-model weights. An empty pool ends the run there: a request the
+constraints make unsatisfiable is an honest answer, not an error.
 
 The hard constraints are yours, not the model's: `--colors` and `--platform`
-filter the pool exactly as in `just retrieve`, and the planner never sees them
+filter the pool exactly as in `just retrieve`, and neither model ever sees them
 ([ADR 0001](docs/adr/0001-legality-color-as-filters-not-prompts.md)). `--format`
 defaults to `commander`; the accepted values are the templates in
 `src/mtg_rag/templates/`.
 
-`--plan-only` stops after the queries — just the plan, each with the role it
-covers, and no corpus or index required:
+Two flags stop early. `--plan-only` prints just the queries, needing no corpus
+or index; `--pool-only` stops at the candidate pool, before curation:
 
 ```sh
 just plan "elfball ramp into a big finisher" --plan-only
+just plan "a spooky graveyard deck that mills itself" --colors B --pool-only
 ```
 
 ## Evals
