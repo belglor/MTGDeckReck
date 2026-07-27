@@ -38,6 +38,14 @@ _SYSTEM_INTRO = (
     "run and how many — a narrow theme needs only a few, a broad one more."
 )
 
+#: The `query_text` values the output contract's worked example shows below.
+#: Named rather than left inline because #72 records the model copying them
+#: back verbatim as its most frequent failure, and the check that counts that
+#: ([ADR 0026]) has to match the strings the prompt actually shows.
+#: `test_plan_prompt` pins these to the contract text, so editing the example
+#: without updating them fails a test rather than silently blinding the check.
+EXAMPLE_QUERIES = ("sacrifice for value", "mana rocks")
+
 # The output contract. Real braces here, so this stays a plain string the
 # function concatenates rather than a `.format` template needing them escaped.
 _OUTPUT_CONTRACT = (
