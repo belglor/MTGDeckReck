@@ -35,3 +35,4 @@ This directory records the significant architectural decisions for this project 
 - [0022](0022-planner-structured-output.md) — The planner validates structured output at the boundary; one retry, then raise, never degrade
 - [0023](0023-planner-consumes-whole-template.md) — The planner is handed the whole format template; selective section-loading stays deferred
 - [0024](0024-curation-structured-output.md) — Curation validates a flat `[{oracle_id, role, rationale}]` schema at the boundary; one retry, then raise
+- [0025](0025-curation-consumes-whole-template.md) — Curation is handed the whole format template; selective section-loading stays deferred
