@@ -39,8 +39,8 @@ def test_a_run_whose_plan_never_validated_is_shown_not_skipped(
     out = capsys.readouterr().out
 
     assert "broken theme" in out
-    assert "PLAN DID NOT VALIDATE" in out
-    assert "plans that did not validate: 1" in out
+    assert "1 of 1 did not validate" in out
+    assert "did not validate: 1" in out
 
 
 def test_the_thematic_and_mechanical_means_are_reported_separately(
@@ -82,6 +82,67 @@ def test_the_table_is_stamped_with_what_produced_it(capsys: pytest.CaptureFixtur
     assert "model:" in out
     assert "sampling:" in out
     assert "commander" in out
+    assert "runs per theme: 1" in out
+
+
+def test_repeats_of_one_theme_collapse_to_a_single_averaged_row(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    runs = [
+        _run("graveyard mill", "thematic", duplicate=0.0),
+        _run("graveyard mill", "thematic", duplicate=1.0),
+    ]
+
+    print_plan_sweep(runs, format_name="commander")
+    out = capsys.readouterr().out
+
+    assert out.count("graveyard mill") == 1
+    assert "0.50" in out
+    assert "runs per theme: 2" in out
+
+
+def test_the_widest_spread_within_a_theme_is_reported(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # The noise floor, and the number to read first: a later change smaller
+    # than this has not been measured. Two real baseline sweeps moved the mean
+    # duplicate rate 0.05 to 0.13 with no code change between them.
+    runs = [
+        _run("steady theme", "thematic", duplicate=0.10),
+        _run("steady theme", "thematic", duplicate=0.20),
+        _run("noisy theme", "mechanical", duplicate=0.17),
+        _run("noisy theme", "mechanical", duplicate=0.67),
+    ]
+
+    print_plan_sweep(runs, format_name="commander")
+    out = capsys.readouterr().out
+
+    # 0.67 - 0.17 = 0.50, the widest any single theme showed; not 0.57, which
+    # is the spread across *all* runs and would overstate the noise.
+    assert "widest spread within one theme: dup 0.50" in out
+
+
+def test_a_theme_run_only_once_reports_no_spread(capsys: pytest.CaptureFixture[str]) -> None:
+    # One sample has no spread; a 0.00 here would read as a stable measurement.
+    print_plan_sweep([_run("graveyard mill", "thematic")], format_name="commander")
+    out = capsys.readouterr().out
+
+    assert "widest spread within one theme: dup —" in out
+
+
+def test_a_theme_that_partly_failed_is_averaged_over_what_validated(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    runs = [
+        _run("graveyard mill", "thematic", duplicate=0.40),
+        _run("graveyard mill", "thematic", failed=True),
+    ]
+
+    print_plan_sweep(runs, format_name="commander")
+    out = capsys.readouterr().out
+
+    assert "0.40" in out
+    assert "1 of 2 did not validate" in out
 
 
 def test_no_verdict_is_printed(capsys: pytest.CaptureFixture[str]) -> None:

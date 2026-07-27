@@ -21,6 +21,7 @@ import argparse
 import sys
 
 from mtg_rag.cli import use_utf8_stdout
+from mtg_rag.defects.config import DEFAULT_SWEEP_RUNS
 from mtg_rag.defects.render import print_plan_sweep
 from mtg_rag.defects.sweep import run_plan_sweep
 from mtg_rag.templates_config import TEMPLATE_DIR, TEMPLATE_SUFFIX
@@ -41,7 +42,20 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         default="commander",
         help="format template to plan against (default: commander)",
     )
-    return parser.parse_args(argv)
+    parser.add_argument(
+        "--runs",
+        type=int,
+        default=DEFAULT_SWEEP_RUNS,
+        help=(
+            "how many times to plan each theme, averaged "
+            f"(default: {DEFAULT_SWEEP_RUNS}); 1 is faster but cannot "
+            "tell a prompt change from sampling noise"
+        ),
+    )
+    args = parser.parse_args(argv)
+    if args.runs < 1:
+        parser.error("--runs must be at least 1")
+    return args
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -69,8 +83,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Could not load the model: {error}", file=sys.stderr)
         return 1
 
-    print(f"Planning the committed themes against {args.format_name}...\n")
-    results = run_plan_sweep(format_name=args.format_name, client=client)
+    print(f"Planning the committed themes against {args.format_name}, {args.runs}x each...\n")
+    results = run_plan_sweep(format_name=args.format_name, client=client, runs=args.runs)
     print_plan_sweep(results, format_name=args.format_name)
 
     # Always zero. A sweep that measured a terrible plan still measured it, and

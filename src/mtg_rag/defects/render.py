@@ -9,6 +9,13 @@ no colour on a "bad" number — because the instrument reports and never gates
 table with what produced it, so a later run is comparable rather than merely
 newer (CLAUDE.md's documentation rule).
 
+The sweep repeats each theme, so a theme's row is a mean over its runs. The
+**widest spread** observed is printed alongside, and it is the number to read
+first: it is the noise floor, and a later change smaller than it has not been
+measured, only sampled. Two baseline sweeps with no code change between them
+moved the mean duplicate rate from 0.05 to 0.13, which is why this is on the
+report rather than in a comment.
+
 The thematic / mechanical split gets its own summary rows because that
 comparison *is* #72's cross-cutting finding: evocative requests degrade worse
 than rules-oriented ones. A single mean would average it away.
@@ -16,27 +23,29 @@ than rules-oriented ones. A single mean would average it away.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
-from mtg_rag.defects.scores import RunScores
+from mtg_rag.defects.scores import PlanScores, RunScores
 from mtg_rag.llm_config import MODEL_ID, TEMPERATURE, TOP_K, TOP_P
 
 _THEME_WIDTH = 46
 
 
 def print_plan_sweep(results: Sequence[RunScores], *, format_name: str) -> None:
-    """Print the per-theme plan numbers, the summary rows, and the stamp."""
+    """Print the per-theme plan means, the summary rows, the spread, and the stamp."""
+    grouped = _group_by_theme(results)
+
     print(f"{'theme':<{_THEME_WIDTH}} {'kind':<11} {'queries':>7} {'dup':>7} {'parrot':>7}")
     print("-" * (_THEME_WIDTH + 36))
-    for run in results:
-        print(f"{_clip(run.theme):<{_THEME_WIDTH}} {run.kind:<11} ", end="")
-        if run.plan is None:
-            print(f"{'—':>7} {'—':>7} {'—':>7}   PLAN DID NOT VALIDATE")
-            continue
+    for theme, runs in grouped.items():
+        plans = _validated(runs)
+        failed = len(runs) - len(plans)
+        note = f"   {failed} of {len(runs)} did not validate" if failed else ""
         print(
-            f"{run.plan.query_count:>7} "
-            f"{_rate(run.plan.duplicate_rate):>7} "
-            f"{_rate(run.plan.parroting_rate):>7}"
+            f"{_clip(theme):<{_THEME_WIDTH}} {runs[0].kind:<11} "
+            f"{_rate(_mean([float(p.query_count) for p in plans]), places=1):>7} "
+            f"{_rate(_mean([p.duplicate_rate for p in plans])):>7} "
+            f"{_rate(_mean([p.parroting_rate for p in plans])):>7}{note}"
         )
 
     print("-" * (_THEME_WIDTH + 36))
@@ -44,23 +53,65 @@ def print_plan_sweep(results: Sequence[RunScores], *, format_name: str) -> None:
     for kind in ("thematic", "mechanical"):
         _print_summary(kind, [run for run in results if run.kind == kind])
 
-    failed = sum(run.plan is None for run in results)
-    print()
-    print(f"model: {MODEL_ID}   format: {format_name}")
-    print(f"sampling: temperature {TEMPERATURE}, top-p {TOP_P}, top-k {TOP_K}")
-    print(f"themes: {len(results)}   plans that did not validate: {failed}")
+    _print_stamp(results, grouped, format_name=format_name)
 
 
 def _print_summary(label: str, runs: Sequence[RunScores]) -> None:
-    """One mean row over the runs whose plan validated."""
-    scored = [run.plan for run in runs if run.plan is not None]
-    queries = _mean([float(plan.query_count) for plan in scored])
-    duplicate = _mean([plan.duplicate_rate for plan in scored])
-    parroting = _mean([plan.parroting_rate for plan in scored])
+    """One mean row over every validated run, across themes."""
+    plans = _validated(runs)
     print(
         f"{'mean — ' + label:<{_THEME_WIDTH}} {'':<11} "
-        f"{_rate(queries, places=1):>7} {_rate(duplicate):>7} {_rate(parroting):>7}"
+        f"{_rate(_mean([float(p.query_count) for p in plans]), places=1):>7} "
+        f"{_rate(_mean([p.duplicate_rate for p in plans])):>7} "
+        f"{_rate(_mean([p.parroting_rate for p in plans])):>7}"
     )
+
+
+def _print_stamp(
+    results: Sequence[RunScores],
+    grouped: dict[str, list[RunScores]],
+    *,
+    format_name: str,
+) -> None:
+    """What produced the table, and how much of it is noise."""
+    per_theme = {len(runs) for runs in grouped.values()}
+    runs_note = str(per_theme.pop()) if len(per_theme) == 1 else "varies"
+    failed = sum(run.plan is None for run in results)
+
+    print()
+    print(f"model: {MODEL_ID}   format: {format_name}")
+    print(f"sampling: temperature {TEMPERATURE}, top-p {TOP_P}, top-k {TOP_K}")
+    print(f"themes: {len(grouped)}   runs per theme: {runs_note}   did not validate: {failed}")
+
+    dup = _widest(grouped, lambda plan: plan.duplicate_rate)
+    parrot = _widest(grouped, lambda plan: plan.parroting_rate)
+    print(f"widest spread within one theme: dup {_rate(dup)}, parrot {_rate(parrot)}")
+    print("a later change smaller than that spread has not been measured, only sampled")
+
+
+def _widest(
+    grouped: dict[str, list[RunScores]],
+    read: Callable[[PlanScores], float | None],
+) -> float | None:
+    """The largest max-minus-min any single theme showed for one metric."""
+    spreads: list[float] = []
+    for runs in grouped.values():
+        values = [value for plan in _validated(runs) if (value := read(plan)) is not None]
+        if len(values) > 1:
+            spreads.append(max(values) - min(values))
+    return max(spreads) if spreads else None
+
+
+def _group_by_theme(results: Sequence[RunScores]) -> dict[str, list[RunScores]]:
+    """Runs keyed by theme, in first-appearance order so the table is stable."""
+    grouped: dict[str, list[RunScores]] = {}
+    for run in results:
+        grouped.setdefault(run.theme, []).append(run)
+    return grouped
+
+
+def _validated(runs: Sequence[RunScores]) -> list[PlanScores]:
+    return [run.plan for run in runs if run.plan is not None]
 
 
 def _mean(values: Sequence[float | None]) -> float | None:
