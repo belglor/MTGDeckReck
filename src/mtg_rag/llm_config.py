@@ -23,7 +23,14 @@ ENABLE_THINKING = False
 
 #: Generation cap — a bound against a runaway generation, not a target length.
 #: With thinking off there is no reasoning preamble competing for the budget.
-MAX_NEW_TOKENS = 1024
+#:
+#: Sized by curation, the longer of the two answers: it returns an entry per
+#: card it picks, each carrying a role and a sentence of rationale, so a full
+#: `CURATION_POOL_SIZE` recommendation runs to roughly 1.4k tokens. At 1024 the
+#: reply was cut mid-string and failed to parse, which looks exactly like a
+#: model that cannot follow the schema. The planner's answer is far shorter and
+#: is unaffected — generation stops at EOS, so this only ever bounds the tail.
+MAX_NEW_TOKENS = 2048
 
 #: Sampling — Qwen3's published recommendation for non-thinking mode
 #: (temperature 0.7, top-p 0.8, top-k 20, min-p 0). min-p is left at its 0

@@ -13,6 +13,7 @@ Build steps are manual (no scheduled refresh); `data/` is gitignored and reprodu
 - `just ingest` — card corpus at `data/cards.parquet` from Scryfall's bulk snapshot.
 - `just embed` — vector index at `data/vectors/`, one Chroma collection per channel, plus its `data/vectors.meta.json` sidecar.
 - `just retrieve "a query"` — searches the index, prints a fused candidate pool.
+- `just plan "a deck request"` — the whole pipeline: plan the searches, retrieve, curate. `--plan-only` stops at the queries (no corpus or index needed), `--pool-only` at the pool.
 - `just eval` — runs the golden set, reports retrieval lift.
 - `just notebook` — opens JupyterLab.
 

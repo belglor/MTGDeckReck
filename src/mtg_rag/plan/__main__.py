@@ -1,20 +1,25 @@
-"""Command-line entry point for the planner — the whole Plan → Retrieve path.
+"""Command-line entry point for the whole pipeline — Plan → Retrieve → Curate.
 
     just plan "a spooky graveyard deck that mills itself" --colors B
     just plan "elfball ramp into a big finisher" --plan-only
 
-Plans the searches for a free-text theme, then runs them through retrieval and
-prints the fused candidate pool. `--plan-only` stops after the queries — the
-query-only output this CLI began as, and all it needs is the format template and
-the instruct model, not the corpus or the index.
+Plans the searches for a free-text theme, runs them through retrieval, and hands
+the fused pool to curation, which returns the cards grouped by the job each does
+([ADR 0005]). Two flags stop early: `--plan-only` after the queries — the
+query-only output this CLI began as, needing neither corpus nor index — and
+`--pool-only` after the candidate pool, which is what `just retrieve` prints.
 
 The trap this CLI has to get right: the planner emits only `query_text` /
 `purpose`, and the hard constraints (format legality, colour identity, platform)
 come from the flags into `Constraints`, **never** from the model ([ADR 0001]).
+Curation inherits that guarantee for free — it chooses from the retrieved pool
+and nothing else, so a card the filters excluded cannot be recommended.
 
-The full path loads two local models — the planner instruct model and the
-embedder — so it plans first and encodes second; the instruct model is sized to
-sit alongside the ~1.2 GB embedder on the 8 GB target (`plan/config.py`).
+The full path loads two local models — the chat model and the embedder — so it
+plans first and encodes second; the chat model is sized to sit alongside the
+~1.2 GB embedder on the 8 GB target (`llm_config.py`). Curation reuses the
+client the planner already loaded rather than paying for a second copy, which
+is what sharing the seam across stages buys ([ADR 0021]).
 """
 
 from __future__ import annotations
@@ -26,7 +31,7 @@ from typing import TYPE_CHECKING
 
 from mtg_rag.cli import use_utf8_stdout
 from mtg_rag.ingest.config import PLATFORMS
-from mtg_rag.llm import QwenChatClient
+from mtg_rag.llm import LLMClient, QwenChatClient
 from mtg_rag.plan.planner import plan
 from mtg_rag.plan.query import PlannedQuery
 from mtg_rag.retrieve.config import DEFAULT_PLATFORM
@@ -35,7 +40,9 @@ from mtg_rag.templates_config import TEMPLATE_DIR, TEMPLATE_SUFFIX
 if TYPE_CHECKING:
     import polars as pl
 
+    from mtg_rag.curate.prompt import CurationCard
     from mtg_rag.retrieve.filters import Constraints
+    from mtg_rag.retrieve.fusion import Candidate
 
 
 def _available_formats() -> list[str]:
@@ -45,7 +52,7 @@ def _available_formats() -> list[str]:
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="python -m mtg_rag.plan",
-        description="Plan the searches for a deck request, then retrieve a candidate pool.",
+        description="Recommend a deck for a request: plan the searches, retrieve, then curate.",
     )
     parser.add_argument("theme", help="a plain-English description of the deck to build")
     parser.add_argument(
@@ -59,6 +66,11 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         "--plan-only",
         action="store_true",
         help="print the planned queries and stop, without searching (needs no corpus or index)",
+    )
+    parser.add_argument(
+        "--pool-only",
+        action="store_true",
+        help="print the retrieved candidate pool and stop, without curating it",
     )
     parser.add_argument(
         "--colors",
@@ -127,8 +139,13 @@ def _prepare_retrieval(args: argparse.Namespace) -> tuple[Constraints, pl.DataFr
     return constraints, frame, vector_dir
 
 
-def _plan(args: argparse.Namespace) -> list[PlannedQuery] | None:
-    """Load the planner, plan the searches, print them — or `None` if it won't load."""
+def _plan(args: argparse.Namespace) -> tuple[list[PlannedQuery], LLMClient] | None:
+    """Load the chat model, plan the searches, print them — or `None` if it won't load.
+
+    Hands the client back along with the queries: curation needs the same model,
+    and re-constructing it would reload multi-GB weights the process is already
+    holding ([ADR 0021]).
+    """
     print("Loading the model...")
     try:
         client = QwenChatClient()
@@ -140,7 +157,7 @@ def _plan(args: argparse.Namespace) -> list[PlannedQuery] | None:
 
     queries = plan(args.theme, format_name=args.format_name, client=client)
     _print_queries(queries, args.format_name)
-    return queries
+    return queries, client
 
 
 def _search_and_print(
@@ -149,8 +166,12 @@ def _search_and_print(
     constraints: Constraints,
     frame: pl.DataFrame,
     vector_dir: Path,
-) -> None:
-    """Run the planned queries through retrieval and print the fused pool.
+) -> tuple[list[Candidate], pl.DataFrame] | None:
+    """Run the planned queries through retrieval, print the fused pool, return it.
+
+    The pool and its hydrated rows go back to the caller, which curation needs
+    and which saves hydrating the same ids twice. `None` means the pool came
+    back empty — reported here, and nothing left to curate.
 
     Loads the embedder and the store here — after the plan — so `--plan-only`
     never pays for them, and so the two local models load one after the other
@@ -173,11 +194,106 @@ def _search_and_print(
 
     if not pool:
         print("No candidates. The constraints may be unsatisfiable for these queries.")
-        return
+        return None
 
     rows = hydrate(frame, [candidate.oracle_id for candidate in pool])
     print(f"\n{len(pool)} candidates in {elapsed * 1000:.0f} ms\n")
     print_pool(pool, rows, explain=False)
+    return pool, rows
+
+
+def _curation_cards(pool: list[Candidate], rows: pl.DataFrame) -> list[CurationCard]:
+    """Pair each hydrated row with the purposes of the searches that found it.
+
+    The hand-off `curate` expects, which `curate/prompt.py` leaves to the caller
+    so it stays a pure string transform. Driven by `rows` rather than by `pool`,
+    because hydration drops ids the corpus no longer holds and this must drop
+    them too.
+
+    Purposes are de-duplicated but keep source order — a card found three times
+    for "self-mill" says that once. They are curation's starting hypothesis for
+    the card's role, not the answer ([ADR 0005]). Null corpus fields become
+    empty strings, which is how the prompt knows to leave the line out.
+    """
+    from mtg_rag.curate.prompt import CurationCard
+
+    purposes = {
+        candidate.oracle_id: tuple(dict.fromkeys(source.purpose for source in candidate.sources))
+        for candidate in pool
+    }
+    return [
+        CurationCard(
+            oracle_id=row["oracle_id"],
+            name=row["name"],
+            mana_cost=row["mana_cost"] or "",
+            type_line=row["type_line"] or "",
+            oracle_text=row["oracle_text"] or "",
+            flavor_text=row["flavor_text"] or "",
+            purposes=purposes[row["oracle_id"]],
+        )
+        for row in rows.iter_rows(named=True)
+    ]
+
+
+def _release_gpu_cache() -> None:
+    """Hand the embedder's GPU blocks back before curation prompts the model.
+
+    Retrieval is done by the time this runs, so the encoder and the store are
+    unreachable — but torch's caching allocator keeps their VRAM reserved until
+    it is asked for it back, and curation's prefill is the largest allocation
+    the process makes. A no-op off CUDA.
+    """
+    import gc
+
+    import torch
+
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+
+def _curate_and_print(
+    theme: str,
+    *,
+    format_name: str,
+    pool: list[Candidate],
+    rows: pl.DataFrame,
+    client: LLMClient,
+) -> int:
+    """Curate the pool and print the recommendation; the process exit code.
+
+    Reuses the client the planner loaded. A malformed recommendation survives
+    curation's one retry ([ADR 0024]) and arrives here as an exception; the user
+    gets one line and a non-zero exit, not a traceback.
+    """
+    from mtg_rag.curate.config import CURATION_POOL_SIZE
+    from mtg_rag.curate.curation import curate
+    from mtg_rag.curate.parse import MalformedRecommendationError
+    from mtg_rag.curate.render import print_recommendation
+
+    _release_gpu_cache()
+
+    # Curation sees the top of the pool, not all of it: attention cost grows
+    # with the square of the prompt and the whole pool does not fit on the
+    # target GPU (`curate/config.py` records the measurement). Cut on the rows
+    # rather than on the pool, because `hydrate` may return fewer — every row
+    # then still has a candidate behind it to read purposes from.
+    shown = rows.head(CURATION_POOL_SIZE)
+    if len(shown) < len(rows):
+        print(f"\nCurating the top {len(shown)} of {len(rows)} candidates...\n")
+    else:
+        print(f"\nCurating {len(shown)} candidates...\n")
+
+    try:
+        recommendation = curate(
+            theme, format_name=format_name, cards=_curation_cards(pool, shown), client=client
+        )
+    except MalformedRecommendationError as error:
+        print(f"Could not read the model's recommendation: {error}", file=sys.stderr)
+        return 1
+
+    print_recommendation(recommendation, shown)
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -207,12 +323,23 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     constraints, frame, vector_dir = prepared
 
-    queries = _plan(args)
-    if queries is None:
+    planned = _plan(args)
+    if planned is None:
         return 1
+    queries, client = planned
 
-    _search_and_print(queries, constraints=constraints, frame=frame, vector_dir=vector_dir)
-    return 0
+    searched = _search_and_print(
+        queries, constraints=constraints, frame=frame, vector_dir=vector_dir
+    )
+    # An empty pool is a valid answer, already reported — an unsatisfiable
+    # request is honest output rather than a failure, so this exits clean.
+    if searched is None or args.pool_only:
+        return 0
+    pool, rows = searched
+
+    return _curate_and_print(
+        args.theme, format_name=args.format_name, pool=pool, rows=rows, client=client
+    )
 
 
 if __name__ == "__main__":

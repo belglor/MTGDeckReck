@@ -33,8 +33,9 @@ embed *args:
 retrieve *args:
     uv run python -m mtg_rag.retrieve "$@"
 
-# Plan the searches for a deck request and retrieve a candidate pool.
+# Recommend a deck for a request: plan the searches, retrieve, then curate.
 # Needs a built corpus and index, except with --plan-only (queries only).
+# --pool-only stops at the candidate pool, before curation.
 # e.g. just plan "a spooky graveyard deck that mills itself" --colors B
 plan *args:
     uv run python -m mtg_rag.plan "$@"
