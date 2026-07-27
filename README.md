@@ -213,6 +213,32 @@ are only comparable within one embedding configuration — which is why every
 report is stamped with the model, dimension and corpus it came from. The cases
 live in `src/mtg_rag/evals/golden.toml`; the JSON report lands in `data/`.
 
+## Defect checks
+
+The eval measures *retrieval*. `just defects` measures what the two model stages
+**emit** — a plan repeating itself, the prompt's own worked example handed back,
+a rationale quoted from the card's own text, or one calling an Instant a
+creature.
+
+```sh
+just defects                    # plans only; needs no corpus or index
+just defects --curate --runs 1  # also retrieves and curates; minutes per run
+```
+
+Every check is a matter of fact rather than taste, which is the line that lets
+this exist at all: [ADR 0006](docs/adr/0006-eval-measures-retrieval-recall.md)
+deliberately put curated output beyond evaluation because two defensible
+recommendations can share no cards, and
+[ADR 0026](docs/adr/0026-measure-output-defects-not-quality.md) records why
+measuring *defects* does not reopen that. Whether a query is a good search or a
+rationale a persuasive argument stays unmeasured, and needs human judgment.
+
+Each theme is planned several times and averaged, because sampling is
+stochastic and the noise is large — the report prints the widest spread it saw
+so a reader can tell a real change from a resample. Like the eval, it never
+fails a run and stays out of CI. The themes live in
+`src/mtg_rag/defects/config.py`; changing them starts a new baseline.
+
 ## Development
 
 `just check` runs lint, typecheck and tests — exactly what CI runs.

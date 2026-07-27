@@ -1,7 +1,7 @@
 """Command-line entry point for the defect sweep.
 
     just defects
-    just defects --format commander
+    just defects --curate --runs 1
 
 Plans each of the committed themes and prints what the plans got wrong
 ([ADR 0026]) — repeats, and the prompt's own worked example handed back. The
@@ -9,22 +9,30 @@ numbers are a regression signal, never a gate: nothing here fails a run, and
 this stays out of `just check` and CI for the reason `just eval` does
 ([ADR 0020]).
 
-Needs neither corpus nor index. Planning only reads the format template and the
-chat model, so this is the cheap sweep — the one to re-run after every change to
-`plan/prompt.py`. Scoring curation needs the whole pipeline and is not wired
-here yet.
+Two sweeps, and the difference in cost is large. The default plans only: it
+needs neither corpus nor index, reads just the format template and the chat
+model, and is the loop to re-run after every edit to `plan/prompt.py`.
+`--curate` runs the whole pipeline and scores the recommendation too, which
+means loading the embedder and the index, and paying for curation to decode a
+rationale per card it picks — minutes per run rather than seconds.
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 from mtg_rag.cli import use_utf8_stdout
 from mtg_rag.defects.config import DEFAULT_SWEEP_RUNS
-from mtg_rag.defects.render import print_plan_sweep
-from mtg_rag.defects.sweep import run_plan_sweep
+from mtg_rag.defects.render import print_curation_sweep, print_plan_sweep
+from mtg_rag.defects.scores import RunScores
+from mtg_rag.defects.sweep import run_full_sweep, run_plan_sweep
 from mtg_rag.templates_config import TEMPLATE_DIR, TEMPLATE_SUFFIX
+
+#: Where the corpus and index live when `--data-dir` is not given, matching the
+#: other CLIs' default.
+_DEFAULT_DATA_DIR = Path("data")
 
 
 def _available_formats() -> list[str]:
@@ -34,7 +42,7 @@ def _available_formats() -> list[str]:
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="python -m mtg_rag.defects",
-        description="Plan the committed themes and score what the plans got wrong.",
+        description="Plan the committed themes and score what the output got wrong.",
     )
     parser.add_argument(
         "--format",
@@ -47,15 +55,101 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         type=int,
         default=DEFAULT_SWEEP_RUNS,
         help=(
-            "how many times to plan each theme, averaged "
+            "how many times to run each theme, averaged "
             f"(default: {DEFAULT_SWEEP_RUNS}); 1 is faster but cannot "
-            "tell a prompt change from sampling noise"
+            "tell a change from sampling noise"
         ),
+    )
+    parser.add_argument(
+        "--curate",
+        action="store_true",
+        help=(
+            "also retrieve and curate, and score the recommendation; "
+            "needs a built corpus and index, and takes minutes per run"
+        ),
+    )
+    parser.add_argument(
+        "--data-dir",
+        type=Path,
+        default=_DEFAULT_DATA_DIR,
+        help=f"where the corpus and index live (default: {_DEFAULT_DATA_DIR})",
     )
     args = parser.parse_args(argv)
     if args.runs < 1:
         parser.error("--runs must be at least 1")
     return args
+
+
+def _load_client() -> object | None:
+    from mtg_rag.llm import QwenChatClient
+
+    print("Loading the model...")
+    try:
+        return QwenChatClient()
+    except Exception as error:
+        # A missing download, no network, or too little memory all surface here;
+        # the user wants one line, not a traceback out of transformers.
+        print(f"Could not load the model: {error}", file=sys.stderr)
+        return None
+
+
+def _run_plan_only(args: argparse.Namespace) -> list[RunScores] | None:
+    client = _load_client()
+    if client is None:
+        return None
+    print(f"Planning the committed themes against {args.format_name}, {args.runs}x each...\n")
+    return run_plan_sweep(format_name=args.format_name, client=client, runs=args.runs)  # type: ignore[arg-type]
+
+
+def _run_full(args: argparse.Namespace) -> list[RunScores] | None:
+    """The whole pipeline. Checks the build before paying for a weights download."""
+    import polars as pl
+
+    from mtg_rag.embed.config import VECTOR_DIR_NAME
+    from mtg_rag.ingest.config import CORPUS_NAME
+    from mtg_rag.retrieve.filters import Constraints, available_formats
+
+    corpus_path = args.data_dir / CORPUS_NAME
+    vector_dir = args.data_dir / VECTOR_DIR_NAME
+    if not corpus_path.exists():
+        print(f"No corpus at {corpus_path}. Run `just ingest` first.", file=sys.stderr)
+        return None
+    if not vector_dir.exists():
+        print(f"No vector index at {vector_dir}. Run `just embed` first.", file=sys.stderr)
+        return None
+
+    frame = pl.read_parquet(corpus_path)
+    if args.format_name not in available_formats(frame):
+        available = ", ".join(sorted(available_formats(frame)))
+        print(f"Unknown format {args.format_name!r} in the corpus. Available: {available}")
+        return None
+
+    client = _load_client()
+    if client is None:
+        return None
+
+    from mtg_rag.embed.encoder import QwenEncoder
+    from mtg_rag.store.chroma import open_client
+
+    print("Loading the embedder...")
+    encoder = QwenEncoder()
+    store = open_client(vector_dir)
+
+    # Constraints are fixed rather than exposed as flags: the numbers compare
+    # only within one constraint set, so letting a run vary them would produce a
+    # table that cannot be read against any other.
+    constraints = Constraints(format_name=args.format_name)
+
+    print(f"Running the committed themes against {args.format_name}, {args.runs}x each...\n")
+    return run_full_sweep(
+        format_name=args.format_name,
+        client=client,  # type: ignore[arg-type]
+        frame=frame,
+        store=store,
+        encoder=encoder,
+        constraints=constraints,
+        runs=args.runs,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -72,22 +166,16 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
-    from mtg_rag.llm import QwenChatClient
-
-    print("Loading the model...")
-    try:
-        client = QwenChatClient()
-    except Exception as error:
-        # A missing download, no network, or too little memory all surface here;
-        # the user wants one line, not a traceback out of transformers.
-        print(f"Could not load the model: {error}", file=sys.stderr)
+    results = _run_full(args) if args.curate else _run_plan_only(args)
+    if results is None:
         return 1
 
-    print(f"Planning the committed themes against {args.format_name}, {args.runs}x each...\n")
-    results = run_plan_sweep(format_name=args.format_name, client=client, runs=args.runs)
     print_plan_sweep(results, format_name=args.format_name)
+    if args.curate:
+        print()
+        print_curation_sweep(results, format_name=args.format_name)
 
-    # Always zero. A sweep that measured a terrible plan still measured it, and
+    # Always zero. A sweep that measured terrible output still measured it, and
     # a non-zero exit would make this a gate ([ADR 0020]).
     return 0
 

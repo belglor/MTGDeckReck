@@ -15,9 +15,10 @@ Build steps are manual (no scheduled refresh); `data/` is gitignored and reprodu
 - `just retrieve "a query"` — searches the index, prints a fused candidate pool.
 - `just plan "a deck request"` — the whole pipeline: plan the searches, retrieve, curate. `--plan-only` stops at the queries (no corpus or index needed), `--pool-only` at the pool.
 - `just eval` — runs the golden set, reports retrieval lift.
+- `just defects` — plans the committed themes and reports what the output got wrong. Add `--curate` to retrieve and curate too, which needs the corpus and index and costs minutes per run.
 - `just notebook` — opens JupyterLab.
 
-`just eval` needs a built corpus and index, so it stays out of `just check` and CI. Its numbers are a regression signal, never a gate; it never fails a run ([ADR 0020](docs/adr/0020-eval-case-is-a-corpus-predicate.md)).
+`just eval` needs a built corpus and index, so it stays out of `just check` and CI. Its numbers are a regression signal, never a gate; it never fails a run ([ADR 0020](docs/adr/0020-eval-case-is-a-corpus-predicate.md)). `just defects` follows the same rule and always exits 0 — it measures *defects* in what the models emit, never quality, which stays a matter of human judgment ([ADR 0026](docs/adr/0026-measure-output-defects-not-quality.md)). Its plain form needs neither corpus nor index.
 
 Two traps: the justfile sets `positional-arguments`, so `just retrieve "graveyard recursion"` is one query, not three; and `just setup` installs the embedding model, which retrieval encodes queries with — a core dependency, imported normally.
 

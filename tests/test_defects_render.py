@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import pytest
 
-from mtg_rag.defects.render import print_plan_sweep
-from mtg_rag.defects.scores import PlanScores, RunScores
+from mtg_rag.defects.render import print_curation_sweep, print_plan_sweep
+from mtg_rag.defects.scores import PlanScores, RecommendationScores, RunScores
 
 
 def _run(
@@ -154,3 +154,86 @@ def test_no_verdict_is_printed(capsys: pytest.CaptureFixture[str]) -> None:
 
     for verdict in ("pass", "fail", "regress", "worse", "bad", "good"):
         assert verdict not in out
+
+
+# --- the curation table ----------------------------------------------------
+
+
+def _curated(theme: str, kind: str, *, roles: int = 2, quote: float = 0.0) -> RunScores:
+    scores = RecommendationScores(
+        card_count=30,
+        role_count=roles,
+        duplicate_rationale_rate=0.10,
+        parroting_rate=0.20,
+        self_quotation_rate=quote,
+        false_type_claim_rate=0.05,
+    )
+    plan = PlanScores(query_count=4, duplicate_rate=0.0, parroting_rate=0.0)
+    return RunScores(theme=theme, kind=kind, plan=plan, recommendation=scores)
+
+
+def test_the_curation_table_reports_every_check(capsys: pytest.CaptureFixture[str]) -> None:
+    print_curation_sweep([_curated("graveyard mill", "thematic")], format_name="commander")
+    out = capsys.readouterr().out
+
+    for header in ("cards", "roles", "dup", "parrot", "quote", "type"):
+        assert header in out
+
+
+def test_role_count_is_reported_as_a_number_with_no_verdict(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # ADR 0006 refuses to say what a right number of buckets would be, so the
+    # count is printed and nothing else ([ADR 0026]).
+    print_curation_sweep([_curated("graveyard mill", "thematic", roles=1)], format_name="commander")
+    out = capsys.readouterr().out.lower()
+
+    assert "1.0" in out
+    for verdict in ("collapse", "expected", "should", "target"):
+        assert verdict not in out
+
+
+def test_a_run_that_produced_no_recommendation_is_counted_not_dropped(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # A run that planned but never curated must stay visible: dropping it would
+    # make the sweep look cleaner the worse curation got.
+    runs = [
+        _curated("graveyard mill", "thematic"),
+        RunScores(
+            theme="graveyard mill",
+            kind="thematic",
+            plan=PlanScores(query_count=4, duplicate_rate=0.0, parroting_rate=0.0),
+            error="not json",
+        ),
+    ]
+
+    print_curation_sweep(runs, format_name="commander")
+    out = capsys.readouterr().out
+
+    assert "1 of 2 produced none" in out
+
+
+def test_a_sweep_with_no_recommendations_reports_nothing_rather_than_zero(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    run = RunScores(
+        theme="graveyard mill",
+        kind="thematic",
+        plan=PlanScores(query_count=4, duplicate_rate=0.0, parroting_rate=0.0),
+        error="no candidates retrieved",
+    )
+
+    print_curation_sweep([run], format_name="commander")
+    out = capsys.readouterr().out
+
+    assert "0.00" not in out
+    assert "—" in out
+
+
+def test_the_curation_table_carries_the_same_stamp(capsys: pytest.CaptureFixture[str]) -> None:
+    print_curation_sweep([_curated("graveyard mill", "thematic")], format_name="commander")
+    out = capsys.readouterr().out
+
+    assert "model:" in out
+    assert "sampling:" in out

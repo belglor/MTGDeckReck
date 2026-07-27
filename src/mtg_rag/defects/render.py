@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 
-from mtg_rag.defects.scores import PlanScores, RunScores
+from mtg_rag.defects.scores import PlanScores, RecommendationScores, RunScores
 from mtg_rag.llm_config import MODEL_ID, TEMPERATURE, TOP_K, TOP_P
 
 _THEME_WIDTH = 46
@@ -54,6 +54,59 @@ def print_plan_sweep(results: Sequence[RunScores], *, format_name: str) -> None:
         _print_summary(kind, [run for run in results if run.kind == kind])
 
     _print_stamp(results, grouped, format_name=format_name)
+
+
+def print_curation_sweep(results: Sequence[RunScores], *, format_name: str) -> None:
+    """Print the per-theme recommendation means, the summary rows, and the stamp.
+
+    A table of its own rather than more columns beside the plan's: six metrics
+    do not fit on one line, and the two stages fail in different ways, so
+    reading them side by side invites a comparison neither supports.
+    """
+    grouped = _group_by_theme(results)
+
+    print(
+        f"{'theme':<{_THEME_WIDTH}} {'kind':<11} {'cards':>6} {'roles':>6} "
+        f"{'dup':>6} {'parrot':>7} {'quote':>6} {'type':>6}"
+    )
+    print("-" * (_THEME_WIDTH + 56))
+    for theme, runs in grouped.items():
+        scored = _curated(runs)
+        missing = len(runs) - len(scored)
+        note = f"   {missing} of {len(runs)} produced none" if missing else ""
+        head = f"{_clip(theme):<{_THEME_WIDTH}} {runs[0].kind:<11} "
+        print(head + _curation_cells(scored) + note)
+
+    print("-" * (_THEME_WIDTH + 56))
+    _print_curation_summary("all", results)
+    for kind in ("thematic", "mechanical"):
+        _print_curation_summary(kind, [run for run in results if run.kind == kind])
+
+    _print_stamp(results, grouped, format_name=format_name)
+
+
+def _curation_cells(scored: Sequence[RecommendationScores]) -> str:
+    return (
+        f"{_rate(_mean([float(s.card_count) for s in scored]), places=1):>6} "
+        f"{_rate(_mean([_as_float(s.role_count) for s in scored]), places=1):>6} "
+        f"{_rate(_mean([s.duplicate_rationale_rate for s in scored])):>6} "
+        f"{_rate(_mean([s.parroting_rate for s in scored])):>7} "
+        f"{_rate(_mean([s.self_quotation_rate for s in scored])):>6} "
+        f"{_rate(_mean([s.false_type_claim_rate for s in scored])):>6}"
+    )
+
+
+def _print_curation_summary(label: str, runs: Sequence[RunScores]) -> None:
+    scored = _curated(runs)
+    print(f"{'mean — ' + label:<{_THEME_WIDTH}} {'':<11} " + _curation_cells(scored))
+
+
+def _curated(runs: Sequence[RunScores]) -> list[RecommendationScores]:
+    return [run.recommendation for run in runs if run.recommendation is not None]
+
+
+def _as_float(value: int | None) -> float | None:
+    return None if value is None else float(value)
 
 
 def _print_summary(label: str, runs: Sequence[RunScores]) -> None:
