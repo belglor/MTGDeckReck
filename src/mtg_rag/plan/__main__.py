@@ -27,10 +27,10 @@ from typing import TYPE_CHECKING
 from mtg_rag.cli import use_utf8_stdout
 from mtg_rag.ingest.config import PLATFORMS
 from mtg_rag.llm import QwenChatClient
-from mtg_rag.plan.config import TEMPLATE_DIR, TEMPLATE_SUFFIX
 from mtg_rag.plan.planner import plan
 from mtg_rag.plan.query import PlannedQuery
 from mtg_rag.retrieve.config import DEFAULT_PLATFORM
+from mtg_rag.templates_config import TEMPLATE_DIR, TEMPLATE_SUFFIX
 
 if TYPE_CHECKING:
     import polars as pl
