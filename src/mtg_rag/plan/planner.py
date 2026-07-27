@@ -15,7 +15,7 @@ no curation can rescue, [ADR 0004]).
 
 from __future__ import annotations
 
-from mtg_rag.plan.client import LLMClient
+from mtg_rag.llm import LLMClient
 from mtg_rag.plan.config import MAX_PLAN_RETRIES, TEMPLATE_DIR, TEMPLATE_SUFFIX
 from mtg_rag.plan.parse import MalformedPlanError, parse_plan
 from mtg_rag.plan.prompt import build_messages

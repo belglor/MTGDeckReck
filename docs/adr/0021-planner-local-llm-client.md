@@ -48,3 +48,7 @@ Naming the choice is still required: the point of the seam is not that the model
 - Bad, because the pick rests on family fit and a smoke test rather than measured evidence, so Qwen3's plan quality and first-try JSON rate are asserted-with-a-sniff-test, not proven; the revisit after 1.0 is where that gets earned
 - Bad, because a small local instruct model is a real quality risk for structured output: `transformers` enforces no schema, so an unreliable model would raise the plan's retry rate (structured output is its own decision — ADR 0022, forthcoming), and the 8 GB card caps how large a model we can reach for to compensate
 - Bad, because running generation in-process keeps the model resident alongside the embedder, so fitting both on 8 GB is a live constraint a future larger model could break
+
+### Scope note
+
+The seam and the adapter (`LLMClient`, `QwenChatClient`) live in `src/mtg_rag/llm.py`, not under `plan/`: curation wants the identical thing from a model — raw text back from a system+user prompt — so the seam is shared by both stages rather than owned by the planner ([issue #76](https://github.com/belglor/MTGDeckReck/issues/76)). The decision above — local, in-process, Qwen3 — is unchanged; only the module boundary moved.

@@ -27,7 +27,7 @@ _PLANNED = [
 
 
 class _StubPlannerClient:
-    """Stands in for `QwenPlannerClient` so no weights load; only has to construct."""
+    """Stands in for `QwenChatClient` so no weights load; only has to construct."""
 
 
 def _fake_plan(request: str, *, format_name: str, client: Any) -> list[PlannedQuery]:
@@ -35,7 +35,7 @@ def _fake_plan(request: str, *, format_name: str, client: Any) -> list[PlannedQu
 
 
 def _stub_planner(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(cli, "QwenPlannerClient", _StubPlannerClient)
+    monkeypatch.setattr(cli, "QwenChatClient", _StubPlannerClient)
     monkeypatch.setattr(cli, "plan", _fake_plan)
 
 
@@ -47,7 +47,7 @@ def test_unknown_format_exits_before_loading_a_model(
     def _boom() -> _StubPlannerClient:
         raise AssertionError("the planner model must not load for an unknown format")
 
-    monkeypatch.setattr(cli, "QwenPlannerClient", _boom)
+    monkeypatch.setattr(cli, "QwenChatClient", _boom)
 
     assert cli.main([_THEME, "--format", "no-such-format"]) == 1
     assert "Unknown format" in capsys.readouterr().err
@@ -136,7 +136,7 @@ def test_missing_corpus_reports_and_exits_before_the_model(
     def _boom() -> _StubPlannerClient:
         raise AssertionError("the planner model must not load when the corpus is missing")
 
-    monkeypatch.setattr(cli, "QwenPlannerClient", _boom)
+    monkeypatch.setattr(cli, "QwenChatClient", _boom)
 
     assert cli.main([_THEME, "--data-dir", str(tmp_path)]) == 1
     assert "just ingest" in capsys.readouterr().err
