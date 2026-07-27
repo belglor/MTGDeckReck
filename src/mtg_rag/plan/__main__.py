@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING
 
 from mtg_rag.cli import use_utf8_stdout
 from mtg_rag.ingest.config import PLATFORMS
-from mtg_rag.plan.client import QwenPlannerClient
+from mtg_rag.llm import QwenChatClient
 from mtg_rag.plan.config import TEMPLATE_DIR, TEMPLATE_SUFFIX
 from mtg_rag.plan.planner import plan
 from mtg_rag.plan.query import PlannedQuery
@@ -131,7 +131,7 @@ def _plan(args: argparse.Namespace) -> list[PlannedQuery] | None:
     """Load the planner, plan the searches, print them — or `None` if it won't load."""
     print("Loading the model...")
     try:
-        client = QwenPlannerClient()
+        client = QwenChatClient()
     except Exception as error:
         # A missing weights download, no network, or too little memory all surface
         # here; the user wants one clear line, not a traceback out of transformers.

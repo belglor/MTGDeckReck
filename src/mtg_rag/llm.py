@@ -1,9 +1,10 @@
-"""The seam between the planner and a generative model.
+"""The seam between an app stage and a generative model.
 
-`LLMClient` is what the planner depends on; `QwenPlannerClient` is the one
-implementation ([ADR 0021]). Keeping the model behind a protocol is what lets
-the planner be tested with a deterministic fake instead of a multi-GB download —
-the same shape the embedder uses for `Encoder` (`src/mtg_rag/embed/encoder.py`).
+`LLMClient` is what a stage depends on; `QwenChatClient` is the one
+implementation ([ADR 0021]). Keeping the model behind a protocol is what lets a
+stage be tested with a deterministic fake instead of a multi-GB download — the
+same shape the embedder uses for `Encoder` (`src/mtg_rag/embed/encoder.py`).
+Shared by the planner and curation ([ADR 0021]) rather than owned by either.
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from mtg_rag.device import resolve_device, resolve_torch_dtype
 from mtg_rag.device_config import ATTENTION_IMPLEMENTATION
-from mtg_rag.plan.config import (
+from mtg_rag.llm_config import (
     ENABLE_THINKING,
     MAX_NEW_TOKENS,
     MODEL_ID,
@@ -32,24 +33,24 @@ _AutoTokenizer: Any = AutoTokenizer
 
 
 class LLMClient(Protocol):
-    """What the planner needs from a generative model: raw text back.
+    """What a stage needs from a generative model: raw text back.
 
-    One method by design. The planner prompts the model and gets a string;
-    parsing and validating that string into `PlannedQuery` is a separate
-    boundary ([ADR 0022]), so the client returns text, not a typed plan. Adding
-    a method no caller uses would be scaffolding the planner never reaches for.
+    One method by design. A caller prompts the model and gets a string; parsing
+    and validating that string into a typed result is a separate boundary
+    (planner: [ADR 0022]), so the client returns text, not a typed result.
+    Adding a method no caller uses would be scaffolding no stage reaches for.
     """
 
     def complete(self, *, system: str, user: str) -> str: ...
 
 
-class QwenPlannerClient:
+class QwenChatClient:
     """`Qwen/Qwen3-1.7B`, run locally ([ADR 0021]).
 
     Deliberately untested, like `QwenEncoder`: a thin adapter whose only
     behavior is configuration, so a test would mean a multi-GB download or
     mocking the library into a tautology. It is guarded structurally instead —
-    the planner depends on `LLMClient`, and the tests pass a deterministic fake.
+    callers depend on `LLMClient`, and their tests pass a deterministic fake.
     """
 
     def __init__(self, *, device: str | None = None) -> None:
