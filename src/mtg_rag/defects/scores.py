@@ -65,17 +65,26 @@ class RecommendationScores:
 
 @dataclass(frozen=True, slots=True)
 class RunScores:
-    """One theme, through both stages, with the theme kept beside its numbers.
+    """One theme's numbers, with the theme kept beside them.
 
     `kind` rides along because #72's finding was a comparison between evocative
     and mechanical phrasing, and a report that loses it cannot show whether that
     gap moved.
+
+    Both stage scores are optional, for different reasons. `recommendation` is
+    `None` when the sweep only planned — the planner needs no corpus, index or
+    embedder, so measuring it alone is the cheap path Phase 3 iterates on.
+    `plan` is `None` when the model's plan never validated, which is a result
+    worth counting rather than a crash: [ADR 0020]'s rule that the instrument
+    reports and never fails a run matters most for the runs that went worst.
+    `error` carries what went wrong when either is missing.
     """
 
     theme: str
     kind: str
-    plan: PlanScores
-    recommendation: RecommendationScores
+    plan: PlanScores | None
+    recommendation: RecommendationScores | None = None
+    error: str | None = None
 
 
 def score_plan(queries: Sequence[str]) -> PlanScores:

@@ -47,3 +47,8 @@ notebook:
 # e.g. just eval --case graveyard -k 50
 eval *args:
     uv run python -m mtg_rag.evals "$@"
+
+# Plan the committed themes and report what the plans got wrong.
+# Needs no corpus or index — the model alone. e.g. just defects --format commander
+defects *args:
+    uv run python -m mtg_rag.defects "$@"
