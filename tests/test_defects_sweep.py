@@ -42,15 +42,36 @@ class _FakeClient:
 def test_every_theme_produces_a_row_carrying_its_kind() -> None:
     client = _FakeClient([_plan("graveyard recursion"), _plan("proliferate payoffs")])
 
-    results = run_plan_sweep(format_name="commander", client=client, themes=_THEMES)
+    results = run_plan_sweep(format_name="commander", client=client, themes=_THEMES, runs=1)
 
     assert [(run.theme, run.kind) for run in results] == list(_THEMES)
+
+
+def test_each_theme_is_planned_once_per_run_and_every_repeat_is_returned() -> None:
+    # Repeats are kept rather than averaged in the sweep: sampling noise is
+    # large enough that a report which hid the spread would mislead.
+    client = _FakeClient([_plan("anything")] * 6)
+
+    results = run_plan_sweep(format_name="commander", client=client, themes=_THEMES, runs=3)
+
+    assert client.calls == 6
+    assert [run.theme for run in results] == [_THEMES[0][0]] * 3 + [_THEMES[1][0]] * 3
+
+
+def test_repeats_of_one_theme_are_scored_independently() -> None:
+    # Two runs of the same theme, one clean and one repeating a query — a sweep
+    # that reused a score across repeats would report them identical.
+    client = _FakeClient([_plan("mill", "recursion"), _plan("mill", "mill")])
+
+    results = run_plan_sweep(format_name="commander", client=client, themes=(_THEMES[0],), runs=2)
+
+    assert [run.plan.duplicate_rate for run in results if run.plan] == [0.0, 0.5]
 
 
 def test_a_themes_queries_are_what_get_scored() -> None:
     client = _FakeClient([_plan("mill", "mill", EXAMPLE_QUERIES[0]), _plan("proliferate")])
 
-    results = run_plan_sweep(format_name="commander", client=client, themes=_THEMES)
+    results = run_plan_sweep(format_name="commander", client=client, themes=_THEMES, runs=1)
 
     first = results[0].plan
     assert first is not None
@@ -65,7 +86,7 @@ def test_a_plan_that_never_validates_is_recorded_and_the_sweep_continues() -> No
     # on the first bad plan cannot measure how often plans are bad ([ADR 0020]).
     client = _FakeClient(["not json", "still not json", _plan("proliferate payoffs")])
 
-    results = run_plan_sweep(format_name="commander", client=client, themes=_THEMES)
+    results = run_plan_sweep(format_name="commander", client=client, themes=_THEMES, runs=1)
 
     assert len(results) == 2
     assert results[0].plan is None
@@ -78,7 +99,7 @@ def test_a_failed_theme_does_not_consume_a_later_themes_result() -> None:
     # so a sweep that mis-tracked responses would score the wrong plan here.
     client = _FakeClient(["not json", "still not json", _plan("a", "a")])
 
-    results = run_plan_sweep(format_name="commander", client=client, themes=_THEMES)
+    results = run_plan_sweep(format_name="commander", client=client, themes=_THEMES, runs=1)
 
     second = results[1].plan
     assert second is not None
@@ -90,6 +111,6 @@ def test_a_failed_theme_does_not_consume_a_later_themes_result() -> None:
 def test_the_committed_theme_set_is_the_default() -> None:
     client = _FakeClient([_plan("anything")] * len(SWEEP_THEMES))
 
-    results = run_plan_sweep(format_name="commander", client=client)
+    results = run_plan_sweep(format_name="commander", client=client, runs=1)
 
     assert [run.theme for run in results] == [theme for theme, _ in SWEEP_THEMES]

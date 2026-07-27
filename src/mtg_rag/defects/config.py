@@ -30,6 +30,25 @@ CARD_TYPES = (
     "battle",
 )
 
+#: How many times each theme is planned, with the per-theme numbers averaged
+#: across the repeats.
+#:
+#: Not 1, because sampling is stochastic and one run cannot tell a real change
+#: from noise. Measured on the first two baseline sweeps (`Qwen/Qwen3-1.7B`,
+#: temperature 0.7, corpus-free plan-only path): with no code change at all
+#: between them, the mean duplicate rate moved 0.05 to 0.13, and single themes
+#: swung much harder — the `+1/+1 counters` plan scored 0.17 then 0.67 for
+#: duplication, and `extra turns` scored 0.00 then 0.40 for parroting. A
+#: one-run sweep therefore cannot detect any prompt change smaller than its own
+#: noise, which is most of them.
+#:
+#: Three is a compromise, not a derived number: it roughly halves the noise on
+#: a mean while keeping a sweep near ten minutes, which matters because the
+#: grounding work in #72 re-runs this repeatedly. The report prints the widest
+#: spread it observed, so a reader can see the noise floor rather than trust
+#: this constant to have been enough.
+DEFAULT_SWEEP_RUNS = 3
+
 #: How a theme is phrased. #72's sweep found the split load-bearing: evocative
 #: requests degrade worse than rules-oriented ones, because a mechanical request
 #: hands the model the Magic word it needs and an evocative one does not. Kept
