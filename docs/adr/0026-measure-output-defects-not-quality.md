@@ -25,12 +25,13 @@ Chosen option: **a separate instrument measuring defects only**, because [ADR 00
 ADR 0006's reasoning is that curation has no right answer — "two defensible answers to the same request can share no cards at all, and that is the feature, not a defect." That holds for *which* cards and *why they were chosen*. It does not hold for the failures actually recorded:
 
 - A rationale describing `Illumination` as "a powerful and radiant creature" contradicts the corpus, which says Instant.
-- A query term appearing nowhere in 38,328 cards' names, text, types or keywords is invented vocabulary, not an unusual search.
 - Output matching the prompt's own worked example verbatim is parroting, whatever the request was.
 - The same rationale stamped across 20+ of 30 cards is degenerate repetition.
 - The same `query_text` repeated within one plan wastes a retrieval slot and fuses to the same results.
 
 Each has a right answer in exactly the sense ADR 0006 requires. So this measures the layer ADR 0006 called interpretive, on the axes where it is not — which does not reopen the rejection, because the rejection was about taste.
+
+**A vocabulary-grounding check was specified and dropped**, because the boundary above is easier to state than to sit on. The proposal ([issue #96](https://github.com/belglor/MTGDeckReck/issues/96)) was to flag query terms appearing nowhere in the corpus as invented vocabulary — reading #72's `sailor's hat` and `aetherwing` as words the model made up. Measured against the corpus (2026-07-22, 38,328 cards, 22,909 distinct tokens) it fails both ways: `aetherwing` is `Aetherwing, Golden-Scale Flagship` and `sailor` is three real cards, so the hallucinations it targets pass; while `lifegain`, `aristocrats`, `etb` and `urzatron` appear on no card, so legitimate deckbuilding vocabulary is flagged — including ADR 0006's own example of a well-formed query. The planner is not inventing words but surfacing real, off-theme card names, which is a *relevance* failure and therefore exactly the judgment ADR 0006 puts out of reach. Reframing it as query thinness fails too: [issue #50](https://github.com/belglor/MTGDeckReck/issues/50) measured bare `"madness"` at 508× lift against a seven-word paraphrase at 0×, so short queries are not the defect. Recorded because the near-miss is the useful part — a check can look mechanical, survive review, and still be measuring taste.
 
 **What stays unmeasured**, and deliberately: whether a query is a *good* search, whether a rationale is a *persuasive* argument, whether a deck *feels* coherent. ADR 0006's stated consequence — that this half "needs human judgment" — stands untouched. A plan can score clean here and still be bad.
 
@@ -45,8 +46,8 @@ Each has a right answer in exactly the sense ADR 0006 requires. So this measures
 - Good, because fixes to #72 and #91 finally get a before/after signal, and a change that improves one failure mode while worsening another becomes visible instead of arguable
 - Good, because ADR 0006's core survives intact: taste stays unmeasured and curation stays free to be personal, varied and opinionated
 - Good, because every check is a pure function over data already in the corpus, so no test needs a model and the instrument cannot drift the way its subject does
-- Good, because a defect check localizes: parroting points at the prompt's example, invented vocabulary points at missing grounding, and the two suggest different fixes
+- Good, because a defect check localizes: a plan repeating itself points at the model padding, one copying the worked example points at the prompt, and the two suggest different fixes
 - Bad, because measuring defects is not measuring quality — every number here can improve while the recommendations get worse, and nothing in this instrument would notice
 - Bad, because it is a second instrument to keep working alongside the golden set, with its own theme set to maintain and its own numbers to stamp
-- Bad, because the invented-vocabulary check rests on tokenization choices that are judgment calls in disguise: too lax and every query passes, too strict and legitimate multi-word phrasing fails
+- Bad, because the defect/taste boundary is narrower than it reads: the vocabulary check above passed a written review and only failed against real data, so every future check needs measuring before it is trusted, not just arguing
 - Bad, because a mechanical check invites gaming — a prompt tuned to avoid the example's exact strings scores better without reasoning better
