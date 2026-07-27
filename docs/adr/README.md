@@ -34,3 +34,4 @@ This directory records the significant architectural decisions for this project 
 - [0021](0021-planner-local-llm-client.md) — The planner runs a local instruct model behind an `LLMClient` seam; Qwen3 instruct is the provisional pick
 - [0022](0022-planner-structured-output.md) — The planner validates structured output at the boundary; one retry, then raise, never degrade
 - [0023](0023-planner-consumes-whole-template.md) — The planner is handed the whole format template; selective section-loading stays deferred
+- [0024](0024-curation-structured-output.md) — Curation validates a flat `[{oracle_id, role, rationale}]` schema at the boundary; one retry, then raise
