@@ -14,7 +14,7 @@ and the cards as data, so these tests pass both directly.
 
 from __future__ import annotations
 
-from mtg_rag.curate.prompt import CurationCard, build_messages
+from mtg_rag.curate.prompt import EXAMPLE_RATIONALES, CurationCard, build_messages
 
 # A realistic theme and a stand-in template. The template text is a sentinel so
 # a test can assert the function embeds *the argument it was handed*, not a file
@@ -107,6 +107,17 @@ def test_the_output_schema_is_specified() -> None:
     assert "role" in messages.system
     assert "rationale" in messages.system
     assert "JSON" in messages.system
+
+
+def test_the_example_rationales_constant_matches_the_contract() -> None:
+    # EXAMPLE_RATIONALES exists so the parroting check ([ADR 0026]) can match the
+    # string the prompt really shows — #91 found this exact sentence returned as
+    # the top card's rationale in 5 of 5 runs. If the worked example is reworded
+    # and the constant is not, the check would quietly stop detecting anything.
+    messages = build_messages(_REQUEST, _TEMPLATE, _CARDS)
+
+    for rationale in EXAMPLE_RATIONALES:
+        assert f'"rationale": "{rationale}"' in messages.system
 
 
 def test_the_card_set_is_stated_as_a_closed_choice() -> None:

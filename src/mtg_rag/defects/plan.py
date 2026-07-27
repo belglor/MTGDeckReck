@@ -14,17 +14,16 @@ business depending on the shape of the record carrying it.
 measured nothing, so reporting a zero would put a false point in a table meant
 to be compared across runs. `evals/metrics.py` follows the same rule.
 
-Comparison is on casefolded, outer-whitespace-stripped text, and no deeper. A
-planner writing "Mill" and " mill " has asked the same question twice and
-retrieval would fuse the same cards from both. Normalizing further — stemming,
-collapsing inner spaces, dropping punctuation — would start deciding that two
-differently-worded queries are "really" the same, which is a judgment this
-instrument is not allowed to make.
+The counting itself lives in `defects.text`, shared with the identical pair of
+checks over curation's rationales. What stays here is what the numbers *mean*
+for a plan, which is the part that differs.
 """
 
 from __future__ import annotations
 
 from collections.abc import Collection, Sequence
+
+from mtg_rag.defects.text import copied_rate, repeat_rate
 
 
 def duplicate_rate(queries: Sequence[str]) -> float | None:
@@ -37,10 +36,7 @@ def duplicate_rate(queries: Sequence[str]) -> float | None:
 
     `None` for an empty plan.
     """
-    if not queries:
-        return None
-    normalized = [_normalize(query) for query in queries]
-    return (len(normalized) - len(set(normalized))) / len(normalized)
+    return repeat_rate(queries)
 
 
 def parroting_rate(queries: Sequence[str], *, examples: Collection[str]) -> float | None:
@@ -59,12 +55,4 @@ def parroting_rate(queries: Sequence[str], *, examples: Collection[str]) -> floa
 
     `None` for an empty plan.
     """
-    if not queries:
-        return None
-    copied = {_normalize(example) for example in examples}
-    return sum(_normalize(query) in copied for query in queries) / len(queries)
-
-
-def _normalize(text: str) -> str:
-    """Casefold and strip, so case and outer padding do not hide a repeat."""
-    return text.strip().casefold()
+    return copied_rate(queries, examples)
