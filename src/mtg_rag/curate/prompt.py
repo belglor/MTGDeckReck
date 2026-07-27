@@ -50,6 +50,15 @@ _SYSTEM_INTRO = (
     "that says something about the player's idea over the merely powerful one."
 )
 
+#: The `rationale` values the output contract's worked example shows below.
+#: Named rather than left inline because #91 found this exact sentence returned
+#: as the top card's rationale in 5 of 5 runs — including three where mill had
+#: nothing to do with the theme — and the check that counts that ([ADR 0026])
+#: has to match the string the prompt actually shows. `test_curate_prompt` pins
+#: these to the contract text, so rewording the example without updating them
+#: fails a test rather than silently blinding the check.
+EXAMPLE_RATIONALES = ("Mills you every upkeep, filling the graveyard the deck feeds on.",)
+
 # The output contract. Real braces here, so this stays a plain string the
 # function concatenates rather than a `.format` template needing them escaped.
 _OUTPUT_CONTRACT = (
