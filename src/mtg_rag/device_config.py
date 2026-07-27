@@ -46,4 +46,15 @@ TORCH_DEVICE_BY_CAPABILITY: Mapping[str, str] = {
 #: on every backend below. flash-attention-2 is deliberately not requested: it
 #: would need `flash-attn` installed and Ampere or newer, and it is not a
 #: dependency this project carries.
+#:
+#: Which *backend* `sdpa` picks underneath this string is a separate question
+#: ([#93]), answered once on the target 8 GB RTX 2070 (`torch==2.11.0+cu128`):
+#: `FLASH_ATTENTION` is unavailable — this torch build was not compiled with
+#: it, independent of hardware — and `CUDNN_ATTENTION` refuses Turing outright
+#: (needs sm80+; this is sm_75). Both are negative results, not gaps to revisit
+#: without a torch or hardware change. `EFFICIENT_ATTENTION` is available and
+#: is forced for curation's prefill, worked around a grouped-query-attention
+#: mismatch that otherwise blocks it too — the mechanism, and why this lives
+#: in `llm.py` rather than as a constant here, is `prefer_efficient_attention`
+#: next to `QwenChatClient`.
 ATTENTION_IMPLEMENTATION = "sdpa"

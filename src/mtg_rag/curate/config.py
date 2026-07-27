@@ -20,14 +20,29 @@ MAX_CURATION_RETRIES = 1
 #: How many of the pool's top candidates curation is shown, which is a hardware
 #: bound rather than a judgment about how many cards make a good deck.
 #: Attention cost grows with the square of the prompt, and the whole retrieved
-#: pool does not fit: measured on the 8 GB RTX 2070 with `Qwen/Qwen3-1.7B`
-#: (corpus 2026-07-22, `DEFAULT_POOL_SIZE` 100), the full pool is ~12.2k tokens
-#: and runs out of CUDA memory outright, ~5.3k tokens (40 candidates) prefills
-#: in 66 s by spilling into shared memory, and ~4.1k tokens (30) prefills in
-#: 2 s. 30 is the last size on the fast side of that cliff.
+#: pool does not always fit.
 #:
-#: The cost is real: curation picks from the top of the pool only, so a role
-#: that ranked poorly can go uncovered, and the recommendation is thinner than
-#: a deck of this format wants. Lifting that means giving curation more than
-#: one call, not raising this number past what the hardware measured above.
-CURATION_POOL_SIZE = 30
+#: The cliff this constant used to sit on (30, in this file's history) was not
+#: actually a hardware ceiling — it was Qwen3's grouped-query attention
+#: defeating both of torch's fused SDPA kernels, leaving only the
+#: quadratic-memory "math" kernel to fall back on (`llm.py`'s
+#: `prefer_efficient_attention` has the mechanism; [#93] is the spike that
+#: found it). Forcing the memory-efficient kernel instead, at zero new
+#: dependencies, moved the cliff a long way out. Measured on the 8 GB RTX 2070
+#: with `Qwen/Qwen3-1.7B` (corpus 2026-07-22): unpatched (`math`), 30
+#: candidates (~4.1k tokens) prefills in 2 s at 6.20 GiB, 40 (~5.3k tokens) in
+#: 47 s at 7.88 GiB by spilling into shared memory, and 100 (~12.4k tokens,
+#: `DEFAULT_POOL_SIZE`, the full pool) OOMs outright. Patched
+#: (`efficient_attention`), the same three sizes take 0.7 s at 4.83 GiB, 0.9 s
+#: at 5.29 GiB, and 2.8 s at 8.09 GiB respectively — the full pool now fits,
+#: but at 8.09 of 8 GiB there is no headroom left for anything else this
+#: process holds.
+#:
+#: 80 candidates (~10.0k tokens) patched takes 2.1 s at 7.14 GiB — the largest
+#: size measured with real margin (~1 GiB free), so that is this constant
+#: rather than 100. A machine with more VRAM, or a smaller model, could
+#: reasonably push it further using the same measurement recipe.
+#:
+#: The remaining gap to the full pool is a job for more than one curation
+#: call, not a bigger number here ([#94]).
+CURATION_POOL_SIZE = 80

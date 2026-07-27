@@ -25,12 +25,18 @@ ENABLE_THINKING = False
 #: With thinking off there is no reasoning preamble competing for the budget.
 #:
 #: Sized by curation, the longer of the two answers: it returns an entry per
-#: card it picks, each carrying a role and a sentence of rationale, so a full
-#: `CURATION_POOL_SIZE` recommendation runs to roughly 1.4k tokens. At 1024 the
-#: reply was cut mid-string and failed to parse, which looks exactly like a
-#: model that cannot follow the schema. The planner's answer is far shorter and
-#: is unaffected — generation stops at EOS, so this only ever bounds the tail.
-MAX_NEW_TOKENS = 2048
+#: card it picks, each carrying a role and a sentence of rationale. Measured
+#: against a real retrieved pool at the current `CURATION_POOL_SIZE` (80
+#: candidates; 8 GB RTX 2070, `Qwen/Qwen3-1.7B`, corpus 2026-07-22 — [#93]
+#: raised the pool size and re-measured this alongside it): curation selected
+#: 74 of the 80 shown and stopped at EOS in 4.2k tokens. Budgeting for the
+#: untaken case where every candidate shown gets picked scales that to ~4.5k;
+#: this constant sits with real headroom above that estimate, not on top of it.
+#: (At the old pool of 30, 1024 tokens cut a reply mid-string and failed to
+#: parse, indistinguishable from a model that cannot follow the schema — why
+#: this was 2048 before.) The planner's answer is far shorter and unaffected —
+#: generation stops at EOS, so this only ever bounds the tail.
+MAX_NEW_TOKENS = 6144
 
 #: Sampling — Qwen3's published recommendation for non-thinking mode
 #: (temperature 0.7, top-p 0.8, top-k 20, min-p 0). min-p is left at its 0
