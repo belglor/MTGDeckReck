@@ -13,7 +13,7 @@ string, so these tests pass one directly.
 
 from __future__ import annotations
 
-from mtg_rag.plan.prompt import build_messages
+from mtg_rag.plan.prompt import EXAMPLE_QUERIES, build_messages
 
 # A realistic theme and a stand-in template. The template text is a sentinel so
 # a test can assert the function embeds *the argument it was handed*, not a file
@@ -70,6 +70,17 @@ def test_the_prompt_scaffolding_carries_no_legality_colour_or_platform_language(
 
     for forbidden in ("legal", "banned", "color", "colour", "platform", "arena", "mtgo"):
         assert forbidden not in scaffolding
+
+
+def test_the_example_queries_constant_matches_the_contract() -> None:
+    # EXAMPLE_QUERIES exists so the parroting check ([ADR 0026]) can match the
+    # strings the prompt really shows. If the worked example is reworded and the
+    # constant is not, the check would quietly stop detecting anything — so pin
+    # the two together here rather than trusting them to be edited in step.
+    messages = build_messages(_REQUEST, _TEMPLATE)
+
+    for query in EXAMPLE_QUERIES:
+        assert f'"query_text": "{query}"' in messages.system
 
 
 def test_the_real_template_is_handed_through_untouched() -> None:
