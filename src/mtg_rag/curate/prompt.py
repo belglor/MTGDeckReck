@@ -21,6 +21,13 @@ What the prompt asks for, and what it deliberately leaves out:
 - The output contract is the typed `[{oracle_id, role, rationale}]` schema and
   nothing else: JSON only, no prose, no code fences, to give the one-shot parse
   ([ADR 0024]) the best chance on the first try.
+- Copying the card's own rules or flavor text into a rationale is forbidden
+  outright ([#106]). It argues nothing the player cannot already read, and it is
+  what made replies long enough to hit the generation cap and be cut mid-string.
+- The contract states a reply budget, derived from `MAX_NEW_TOKENS` so the two
+  cannot drift. The cap is otherwise silent: overrunning it truncates the JSON,
+  and the parser's complaint is indistinguishable from a model that cannot
+  follow the schema.
 - No number reaches the model. A candidate's fused score and its channel
   distances are display-only ([ADR 0008]) and say nothing about theme fit, so
   they are not shown; and the answer asked for is a role plus a checkable
@@ -37,6 +44,9 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+
+from mtg_rag.curate.config import RATIONALE_BUDGET_FRACTION
+from mtg_rag.llm_config import MAX_NEW_TOKENS
 
 # The role and task. The model selects from a fixed pool, assigns each pick a
 # role, and argues its theme fit ([ADR 0005]).
@@ -59,6 +69,13 @@ _SYSTEM_INTRO = (
 #: fails a test rather than silently blinding the check.
 EXAMPLE_RATIONALES = ("Mills you every upkeep, filling the graveyard the deck feeds on.",)
 
+#: The reply budget the contract states, derived so it tracks the real cap
+#: rather than drifting from it ([#106]). Stated to the model because the cap
+#: itself is silent: generation stops mid-string and the parser reports a
+#: malformed reply, which looks identical to a model that cannot follow the
+#: schema.
+_REPLY_TOKEN_BUDGET = int(MAX_NEW_TOKENS * RATIONALE_BUDGET_FRACTION)
+
 # The output contract. Real braces here, so this stays a plain string the
 # function concatenates rather than a `.format` template needing them escaped.
 _OUTPUT_CONTRACT = (
@@ -77,6 +94,15 @@ _OUTPUT_CONTRACT = (
     '"Mills you every upkeep, filling the graveyard the deck feeds on."}]\n\n'
     "Give the same card at most one entry, and add no other key — no rating, no "
     "number. The role and the argument are the whole answer.\n\n"
+    "Never copy the card's own text into the rationale. Not its rules text, not "
+    "its flavor text, not a phrase from either. The player can already read the "
+    "card; quoting it back argues nothing. Say in your own words what the card "
+    "does and why that serves this theme.\n\n"
+    "Keep every rationale to one short sentence. Your whole reply must fit in "
+    + str(_REPLY_TOKEN_BUDGET)
+    + " tokens — a longer reply is cut off mid-word and cannot be read at all, "
+    "so a shorter list of well-argued cards beats a long one that never "
+    "arrives.\n\n"
     "Output the JSON array and nothing else: no prose, no explanation, no "
     "markdown code fences."
 )
