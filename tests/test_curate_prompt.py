@@ -182,3 +182,36 @@ def test_the_real_template_is_handed_through_untouched() -> None:
     messages = build_messages(_REQUEST, template, _CARDS)
 
     assert template in messages.system
+
+
+def test_quoting_the_cards_own_text_is_forbidden() -> None:
+    # #106: rationales that were the card's oracle text verbatim made replies
+    # long enough to hit the generation cap, truncating the JSON mid-string. The
+    # ban is also #91 pattern 2's fix — a quote argues nothing the player cannot
+    # already read.
+    messages = build_messages(_REQUEST, _TEMPLATE, _CARDS)
+
+    assert "Never copy the card's own text" in messages.system
+    assert "flavor text" in messages.system
+
+
+def test_the_reply_budget_is_stated_and_tracks_the_real_cap() -> None:
+    # The cap is silent: overrunning it truncates the JSON and the parser's
+    # complaint looks exactly like a model that cannot follow the schema. The
+    # budget is derived, not typed, so the two cannot drift apart.
+    from mtg_rag.curate.config import RATIONALE_BUDGET_FRACTION
+    from mtg_rag.llm_config import MAX_NEW_TOKENS
+
+    messages = build_messages(_REQUEST, _TEMPLATE, _CARDS)
+    expected = int(MAX_NEW_TOKENS * RATIONALE_BUDGET_FRACTION)
+
+    assert str(expected) in messages.system
+    assert expected < MAX_NEW_TOKENS
+
+
+def test_the_budget_leaves_headroom_under_the_cap() -> None:
+    # A budget equal to the cap would leave a model that overshoots slightly
+    # with a truncated, unparseable reply — the failure this exists to prevent.
+    from mtg_rag.curate.config import RATIONALE_BUDGET_FRACTION
+
+    assert 0.0 < RATIONALE_BUDGET_FRACTION < 1.0

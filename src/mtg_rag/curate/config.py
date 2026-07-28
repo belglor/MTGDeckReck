@@ -17,6 +17,21 @@ from __future__ import annotations
 #: behind the `LLMClient` seam.
 MAX_CURATION_RETRIES = 1
 
+#: What share of `MAX_NEW_TOKENS` the prompt tells curation its whole reply must
+#: fit inside ([#106]).
+#:
+#: Below 1.0 because the number is a budget the model is asked to respect, not a
+#: limit anything enforces: generation stops at the real cap regardless, and a
+#: reply that reaches it is cut mid-string and cannot be parsed. Leaving a
+#: margin means a model that overshoots its stated budget by a little still
+#: lands inside the cap and produces a readable answer.
+#:
+#: 0.9 is a judgement, not a measurement. A small model counts its own tokens
+#: badly, so this is a nudge rather than a guarantee — the load-bearing fix for
+#: [#106] is the prompt forbidding quoted card text, which is what made replies
+#: long in the first place.
+RATIONALE_BUDGET_FRACTION = 0.9
+
 #: How many of the pool's top candidates curation is shown, which is a hardware
 #: bound rather than a judgment about how many cards make a good deck.
 #: Attention cost grows with the square of the prompt, and the whole retrieved
