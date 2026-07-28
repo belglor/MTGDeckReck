@@ -32,6 +32,25 @@ _THEME_WIDTH = 46
 _REASON_WIDTH = 90
 
 
+def print_progress(run: RunScores) -> None:
+    """One line the moment a theme finishes.
+
+    `print_plan_sweep` / `print_curation_sweep` only run once, after every
+    theme has finished — on a `--curate` sweep (minutes per theme) nothing
+    reaches the terminal for the whole run without this. `flush=True` so a
+    piped or redirected run still shows it live rather than only once the
+    process exits.
+    """
+    if run.plan is None:
+        outcome = "plan did not validate"
+    elif run.recommendation is None and run.error is not None:
+        outcome = "no recommendation"
+    else:
+        outcome = "ok"
+    seconds = f"{run.seconds:.0f}s" if run.seconds is not None else "?s"
+    print(f"  [{seconds:>6}] {run.theme[:60]:<60} {outcome}", flush=True)
+
+
 def print_plan_sweep(results: Sequence[RunScores], *, format_name: str) -> None:
     """Print the per-theme plan means, the summary rows, the spread, and the stamp."""
     grouped = _group_by_theme(results)

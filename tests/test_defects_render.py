@@ -322,3 +322,55 @@ def test_a_clean_run_prints_no_reason_line(capsys: pytest.CaptureFixture[str]) -
     print_curation_sweep([_curated("graveyard mill", "thematic")], format_name="commander")
 
     assert "↳" not in capsys.readouterr().out
+
+
+# --- print_progress ---------------------------------------------------------
+
+
+def test_a_completed_run_prints_its_theme(capsys: pytest.CaptureFixture[str]) -> None:
+    from mtg_rag.defects.render import print_progress
+
+    print_progress(_run("graveyard mill", "thematic"))
+
+    assert "graveyard mill" in capsys.readouterr().out
+
+
+def test_a_run_with_no_recommendation_says_so(capsys: pytest.CaptureFixture[str]) -> None:
+    from mtg_rag.defects.render import print_progress
+
+    run = RunScores(
+        theme="pirates",
+        kind="thematic",
+        plan=PlanScores(query_count=4, duplicate_rate=0.0, parroting_rate=0.0),
+        error="recommendation entry 39 oracle_id 'ultima_weapon' is not in the retrieved pool",
+    )
+
+    print_progress(run)
+
+    assert "no recommendation" in capsys.readouterr().out
+
+
+def test_a_run_whose_plan_never_validated_says_so(capsys: pytest.CaptureFixture[str]) -> None:
+    from mtg_rag.defects.render import print_progress
+
+    print_progress(RunScores(theme="broken", kind="thematic", plan=None, error="not json"))
+
+    assert "plan did not validate" in capsys.readouterr().out
+
+
+def test_a_successful_recommendation_reports_ok(capsys: pytest.CaptureFixture[str]) -> None:
+    from mtg_rag.defects.render import print_progress
+
+    print_progress(_curated("dragon tribal", "thematic"))
+
+    assert " ok" in capsys.readouterr().out
+
+
+def test_a_plan_only_run_with_no_error_reports_ok(capsys: pytest.CaptureFixture[str]) -> None:
+    # The default sweep never sets `recommendation`; a plan that validated and
+    # raised no error must not be mistaken for "no recommendation".
+    from mtg_rag.defects.render import print_progress
+
+    print_progress(_run("graveyard mill", "thematic"))
+
+    assert "no recommendation" not in capsys.readouterr().out
