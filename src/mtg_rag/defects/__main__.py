@@ -27,7 +27,7 @@ from pathlib import Path
 
 from mtg_rag.cli import use_utf8_stdout
 from mtg_rag.defects.config import DEFAULT_SWEEP_RUNS
-from mtg_rag.defects.render import print_curation_sweep, print_plan_sweep
+from mtg_rag.defects.render import print_curation_sweep, print_plan_sweep, print_progress
 from mtg_rag.defects.scores import RunScores
 from mtg_rag.defects.sweep import run_full_sweep, run_plan_sweep
 from mtg_rag.templates_config import TEMPLATE_DIR, TEMPLATE_SUFFIX
@@ -119,13 +119,16 @@ def _run_recorder(client: object) -> Callable[[RunScores], None] | None:
 
     Interleaved rather than dumped at the end, so a sweep that is interrupted —
     or killed after an unexpected hour — still leaves every run it completed.
+    Composed with `print_progress` rather than replacing it: the log is opt-in
+    ([--debug-log]), progress on the terminal is not.
     """
     from mtg_rag.defects.recording import RecordingClient
 
     if not isinstance(client, RecordingClient):
-        return None
+        return print_progress
 
     def record(run: RunScores) -> None:
+        print_progress(run)
         client.write({"record": "run"} | asdict(run))
 
     return record
