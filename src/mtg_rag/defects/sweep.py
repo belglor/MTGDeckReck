@@ -20,7 +20,8 @@ per run rather than seconds.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import time
+from collections.abc import Callable, Sequence
 
 import polars as pl
 from chromadb.api import ClientAPI
@@ -45,6 +46,7 @@ def run_plan_sweep(
     client: LLMClient,
     themes: Sequence[tuple[str, str]] = SWEEP_THEMES,
     runs: int = DEFAULT_SWEEP_RUNS,
+    on_run: Callable[[RunScores], None] | None = None,
 ) -> list[RunScores]:
     """Plan each theme `runs` times and score the queries, one `RunScores` each.
 
@@ -65,14 +67,30 @@ def run_plan_sweep(
     results: list[RunScores] = []
     for theme, kind in themes:
         for _ in range(runs):
+            started = time.perf_counter()
             try:
                 queries = plan(theme, format_name=format_name, client=client)
             except MalformedPlanError as error:
-                results.append(RunScores(theme=theme, kind=kind, plan=None, error=str(error)))
+                results.append(
+                    RunScores(
+                        theme=theme,
+                        kind=kind,
+                        plan=None,
+                        error=str(error),
+                        seconds=time.perf_counter() - started,
+                    )
+                )
+                _emit(on_run, results[-1])
                 continue
             results.append(
-                RunScores(theme=theme, kind=kind, plan=score_plan([q.query_text for q in queries]))
+                RunScores(
+                    theme=theme,
+                    kind=kind,
+                    plan=score_plan([q.query_text for q in queries]),
+                    seconds=time.perf_counter() - started,
+                )
             )
+            _emit(on_run, results[-1])
     return results
 
 
@@ -86,6 +104,7 @@ def run_full_sweep(
     constraints: Constraints,
     themes: Sequence[tuple[str, str]] = SWEEP_THEMES,
     runs: int = DEFAULT_SWEEP_RUNS,
+    on_run: Callable[[RunScores], None] | None = None,
 ) -> list[RunScores]:
     """Plan, retrieve and curate each theme `runs` times, scoring both stages.
 
@@ -119,6 +138,7 @@ def run_full_sweep(
                     constraints=constraints,
                 )
             )
+            _emit(on_run, results[-1])
     return results
 
 
@@ -133,18 +153,35 @@ def _score_one(
     encoder: Encoder,
     constraints: Constraints,
 ) -> RunScores:
-    """One theme, once, through the whole pipeline."""
+    """One theme, once, through the whole pipeline.
+
+    Every exit carries the timing and whatever pool sizes were reached before it
+    stopped, so a failed run still says how long it cost and how far it got —
+    the two questions a bare "produced none" cannot answer.
+    """
+    started = time.perf_counter()
+
+    def elapsed() -> float:
+        return time.perf_counter() - started
+
     try:
         queries = plan(theme, format_name=format_name, client=client)
     except MalformedPlanError as error:
-        return RunScores(theme=theme, kind=kind, plan=None, error=str(error))
+        return RunScores(theme=theme, kind=kind, plan=None, error=str(error), seconds=elapsed())
 
     plan_scores = score_plan([query.query_text for query in queries])
     pool = retrieve(queries, constraints=constraints, frame=frame, client=store, encoder=encoder)
     if not pool:
         # A real answer, not a failure: the constraints may be unsatisfiable for
         # these queries. There is nothing to curate, so nothing to score.
-        return RunScores(theme=theme, kind=kind, plan=plan_scores, error="no candidates retrieved")
+        return RunScores(
+            theme=theme,
+            kind=kind,
+            plan=plan_scores,
+            error="no candidates retrieved",
+            seconds=elapsed(),
+            pool_size=0,
+        )
 
     rows = hydrate(frame, [candidate.oracle_id for candidate in pool])
     # Curation sees the top of the pool, not all of it ([#93] measured the cap).
@@ -156,7 +193,16 @@ def _score_one(
             theme, format_name=format_name, cards=curation_cards(pool, shown), client=client
         )
     except MalformedRecommendationError as error:
-        return RunScores(theme=theme, kind=kind, plan=plan_scores, error=str(error))
+        return RunScores(
+            theme=theme,
+            kind=kind,
+            plan=plan_scores,
+            error=str(error),
+            seconds=elapsed(),
+            pool_size=len(pool),
+            hydrated=len(rows),
+            shown=len(shown),
+        )
 
     # Scored against `shown`, not the whole pool: those are the cards curation
     # was given, and its ids are closed to that set ([ADR 0024]).
@@ -165,4 +211,20 @@ def _score_one(
         kind=kind,
         plan=plan_scores,
         recommendation=score_recommendation(recommendation, shown),
+        seconds=elapsed(),
+        pool_size=len(pool),
+        hydrated=len(rows),
+        shown=len(shown),
     )
+
+
+def _emit(on_run: Callable[[RunScores], None] | None, run: RunScores) -> None:
+    """Hand a finished run to the caller, if it asked for them.
+
+    Called as each run completes rather than once at the end, so an interrupted
+    sweep still leaves everything it managed — the failure mode that cost a
+    90-minute run its output. A caller that only wants the totals passes
+    nothing and this does nothing.
+    """
+    if on_run is not None:
+        on_run(run)

@@ -23,12 +23,13 @@ than rules-oriented ones. A single mean would average it away.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 
 from mtg_rag.defects.scores import PlanScores, RecommendationScores, RunScores
 from mtg_rag.llm_config import MODEL_ID, TEMPERATURE, TOP_K, TOP_P
 
 _THEME_WIDTH = 46
+_REASON_WIDTH = 90
 
 
 def print_plan_sweep(results: Sequence[RunScores], *, format_name: str) -> None:
@@ -47,6 +48,7 @@ def print_plan_sweep(results: Sequence[RunScores], *, format_name: str) -> None:
             f"{_rate(_mean([p.duplicate_rate for p in plans])):>7} "
             f"{_rate(_mean([p.parroting_rate for p in plans])):>7}{note}"
         )
+        _print_reasons(run for run in runs if run.plan is None)
 
     print("-" * (_THEME_WIDTH + 36))
     _print_summary("all", results)
@@ -76,6 +78,7 @@ def print_curation_sweep(results: Sequence[RunScores], *, format_name: str) -> N
         note = f"   {missing} of {len(runs)} produced none" if missing else ""
         head = f"{_clip(theme):<{_THEME_WIDTH}} {runs[0].kind:<11} "
         print(head + _curation_cells(scored) + note)
+        _print_reasons(run for run in runs if run.recommendation is None)
 
     print("-" * (_THEME_WIDTH + 56))
     _print_curation_summary("all", results)
@@ -83,6 +86,26 @@ def print_curation_sweep(results: Sequence[RunScores], *, format_name: str) -> N
         _print_curation_summary(kind, [run for run in results if run.kind == kind])
 
     _print_stamp(results, grouped, format_name=format_name)
+
+
+def _print_reasons(runs: Iterable[RunScores]) -> None:
+    """Why a run produced nothing, indented under its theme's row.
+
+    `_score_one` already records this and the parsers already say something
+    specific — "output is not valid JSON", "oracle_id … is not in the retrieved
+    pool", "no candidates retrieved". Printing only the count would leave a
+    reader unable to tell a model that wrapped prose around its JSON from one
+    that invented a card, which are different problems with different fixes.
+    """
+    for run in runs:
+        if run.error:
+            print(f"{'':<{_THEME_WIDTH}} {'':<11}   ↳ {_clip_reason(run.error)}")
+
+
+def _clip_reason(error: str) -> str:
+    """One line of it. Parser messages can carry a whole malformed payload."""
+    first = error.strip().splitlines()[0] if error.strip() else error
+    return first if len(first) <= _REASON_WIDTH else first[: _REASON_WIDTH - 1] + "…"
 
 
 def _curation_cells(scored: Sequence[RecommendationScores]) -> str:

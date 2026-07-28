@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Callable
+from dataclasses import asdict
 from pathlib import Path
 
 from mtg_rag.cli import use_utf8_stdout
@@ -74,31 +76,72 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         default=_DEFAULT_DATA_DIR,
         help=f"where the corpus and index live (default: {_DEFAULT_DATA_DIR})",
     )
+    parser.add_argument(
+        "--debug-log",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help=(
+            "append every prompt and raw model reply to PATH as JSONL, including "
+            "the ones that failed to validate; the only way to see what a run "
+            "that produced nothing actually said"
+        ),
+    )
     args = parser.parse_args(argv)
     if args.runs < 1:
         parser.error("--runs must be at least 1")
     return args
 
 
-def _load_client() -> object | None:
+def _load_client(debug_log: Path | None) -> object | None:
     from mtg_rag.llm import QwenChatClient
 
     print("Loading the model...")
     try:
-        return QwenChatClient()
+        client = QwenChatClient()
     except Exception as error:
         # A missing download, no network, or too little memory all surface here;
         # the user wants one line, not a traceback out of transformers.
         print(f"Could not load the model: {error}", file=sys.stderr)
         return None
 
+    if debug_log is None:
+        return client
+
+    from mtg_rag.defects.recording import RecordingClient
+
+    print(f"Recording every exchange to {debug_log}")
+    return RecordingClient(client, debug_log)
+
+
+def _run_recorder(client: object) -> Callable[[RunScores], None] | None:
+    """A callback writing each finished run into the same log as the exchanges.
+
+    Interleaved rather than dumped at the end, so a sweep that is interrupted —
+    or killed after an unexpected hour — still leaves every run it completed.
+    """
+    from mtg_rag.defects.recording import RecordingClient
+
+    if not isinstance(client, RecordingClient):
+        return None
+
+    def record(run: RunScores) -> None:
+        client.write({"record": "run"} | asdict(run))
+
+    return record
+
 
 def _run_plan_only(args: argparse.Namespace) -> list[RunScores] | None:
-    client = _load_client()
+    client = _load_client(args.debug_log)
     if client is None:
         return None
     print(f"Planning the committed themes against {args.format_name}, {args.runs}x each...\n")
-    return run_plan_sweep(format_name=args.format_name, client=client, runs=args.runs)  # type: ignore[arg-type]
+    return run_plan_sweep(
+        format_name=args.format_name,
+        client=client,  # type: ignore[arg-type]
+        runs=args.runs,
+        on_run=_run_recorder(client),
+    )
 
 
 def _run_full(args: argparse.Namespace) -> list[RunScores] | None:
@@ -124,7 +167,7 @@ def _run_full(args: argparse.Namespace) -> list[RunScores] | None:
         print(f"Unknown format {args.format_name!r} in the corpus. Available: {available}")
         return None
 
-    client = _load_client()
+    client = _load_client(args.debug_log)
     if client is None:
         return None
 
@@ -149,6 +192,7 @@ def _run_full(args: argparse.Namespace) -> list[RunScores] | None:
         encoder=encoder,
         constraints=constraints,
         runs=args.runs,
+        on_run=_run_recorder(client),
     )
 
 

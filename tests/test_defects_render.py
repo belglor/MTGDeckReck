@@ -237,3 +237,88 @@ def test_the_curation_table_carries_the_same_stamp(capsys: pytest.CaptureFixture
 
     assert "model:" in out
     assert "sampling:" in out
+
+
+# --- failure reasons -------------------------------------------------------
+
+
+def test_the_reason_a_run_produced_nothing_is_printed(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # A count alone cannot distinguish a model that wrapped prose around its
+    # JSON from one that invented a card id — different problems, different
+    # fixes. `_score_one` already records this; it was being discarded.
+    run = RunScores(
+        theme="graveyard mill",
+        kind="thematic",
+        plan=PlanScores(query_count=4, duplicate_rate=0.0, parroting_rate=0.0),
+        error="curation output is not valid JSON: Expecting value: line 1 column 1",
+    )
+
+    print_curation_sweep([run], format_name="commander")
+    out = capsys.readouterr().out
+
+    assert "1 of 1 produced none" in out
+    assert "curation output is not valid JSON" in out
+
+
+def test_an_empty_pool_is_distinguishable_from_a_parse_failure(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    runs = [
+        RunScores(
+            theme="unsatisfiable",
+            kind="thematic",
+            plan=PlanScores(query_count=4, duplicate_rate=0.0, parroting_rate=0.0),
+            error="no candidates retrieved",
+        ),
+        RunScores(
+            theme="malformed",
+            kind="thematic",
+            plan=PlanScores(query_count=4, duplicate_rate=0.0, parroting_rate=0.0),
+            error="recommendation entry 3 oracle_id 'made-up' is not in the retrieved pool",
+        ),
+    ]
+
+    print_curation_sweep(runs, format_name="commander")
+    out = capsys.readouterr().out
+
+    assert "no candidates retrieved" in out
+    assert "is not in the retrieved pool" in out
+
+
+def test_a_plan_failure_reason_is_printed_too(capsys: pytest.CaptureFixture[str]) -> None:
+    run = RunScores(
+        theme="broken",
+        kind="thematic",
+        plan=None,
+        error="planner output is not valid JSON: Expecting value",
+    )
+
+    print_plan_sweep([run], format_name="commander")
+    out = capsys.readouterr().out
+
+    assert "planner output is not valid JSON" in out
+
+
+def test_a_multi_line_reason_is_cut_to_one_line(capsys: pytest.CaptureFixture[str]) -> None:
+    # Parser messages can carry a whole malformed payload; a table that grew a
+    # page per failure would bury the numbers.
+    run = RunScores(
+        theme="broken",
+        kind="thematic",
+        plan=None,
+        error="planner output is not valid JSON\n" + "x" * 500,
+    )
+
+    print_plan_sweep([run], format_name="commander")
+    out = capsys.readouterr().out
+
+    assert "x" * 200 not in out
+    assert "planner output is not valid JSON" in out
+
+
+def test_a_clean_run_prints_no_reason_line(capsys: pytest.CaptureFixture[str]) -> None:
+    print_curation_sweep([_curated("graveyard mill", "thematic")], format_name="commander")
+
+    assert "↳" not in capsys.readouterr().out
