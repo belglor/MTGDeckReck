@@ -85,6 +85,19 @@ class RunScores:
     plan: PlanScores | None
     recommendation: RecommendationScores | None = None
     error: str | None = None
+    #: Wall-clock for the whole run. Recorded because the cost turned out to be
+    #: the thing nobody could predict: a curation call that hits its token cap
+    #: is re-asked once ([ADR 0024]), so a *failing* theme costs two full
+    #: generations and takes twice as long as a passing one.
+    seconds: float | None = None
+    #: How many candidates retrieval returned, before any cap.
+    pool_size: int | None = None
+    #: How many of those the corpus could still hydrate. Below `pool_size` means
+    #: the index holds ids the corpus has since dropped — invisible otherwise,
+    #: because the cap below would hide it.
+    hydrated: int | None = None
+    #: How many curation was actually shown, after `CURATION_POOL_SIZE`.
+    shown: int | None = None
 
 
 def score_plan(queries: Sequence[str]) -> PlanScores:

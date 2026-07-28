@@ -40,7 +40,6 @@ from mtg_rag.templates_config import TEMPLATE_DIR, TEMPLATE_SUFFIX
 if TYPE_CHECKING:
     import polars as pl
 
-    from mtg_rag.curate.prompt import CurationCard
     from mtg_rag.retrieve.filters import Constraints
     from mtg_rag.retrieve.fusion import Candidate
 
@@ -202,39 +201,6 @@ def _search_and_print(
     return pool, rows
 
 
-def _curation_cards(pool: list[Candidate], rows: pl.DataFrame) -> list[CurationCard]:
-    """Pair each hydrated row with the purposes of the searches that found it.
-
-    The hand-off `curate` expects, which `curate/prompt.py` leaves to the caller
-    so it stays a pure string transform. Driven by `rows` rather than by `pool`,
-    because hydration drops ids the corpus no longer holds and this must drop
-    them too.
-
-    Purposes are de-duplicated but keep source order — a card found three times
-    for "self-mill" says that once. They are curation's starting hypothesis for
-    the card's role, not the answer ([ADR 0005]). Null corpus fields become
-    empty strings, which is how the prompt knows to leave the line out.
-    """
-    from mtg_rag.curate.prompt import CurationCard
-
-    purposes = {
-        candidate.oracle_id: tuple(dict.fromkeys(source.purpose for source in candidate.sources))
-        for candidate in pool
-    }
-    return [
-        CurationCard(
-            oracle_id=row["oracle_id"],
-            name=row["name"],
-            mana_cost=row["mana_cost"] or "",
-            type_line=row["type_line"] or "",
-            oracle_text=row["oracle_text"] or "",
-            flavor_text=row["flavor_text"] or "",
-            purposes=purposes[row["oracle_id"]],
-        )
-        for row in rows.iter_rows(named=True)
-    ]
-
-
 def _release_gpu_cache() -> None:
     """Hand the embedder's GPU blocks back before curation prompts the model.
 
@@ -266,6 +232,7 @@ def _curate_and_print(
     curation's one retry ([ADR 0024]) and arrives here as an exception; the user
     gets one line and a non-zero exit, not a traceback.
     """
+    from mtg_rag.curate.cards import curation_cards
     from mtg_rag.curate.config import CURATION_POOL_SIZE
     from mtg_rag.curate.curation import curate
     from mtg_rag.curate.parse import MalformedRecommendationError
@@ -286,7 +253,7 @@ def _curate_and_print(
 
     try:
         recommendation = curate(
-            theme, format_name=format_name, cards=_curation_cards(pool, shown), client=client
+            theme, format_name=format_name, cards=curation_cards(pool, shown), client=client
         )
     except MalformedRecommendationError as error:
         print(f"Could not read the model's recommendation: {error}", file=sys.stderr)
